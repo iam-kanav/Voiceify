@@ -1,0 +1,34 @@
+name: Model request
+description: Suggest an open-source model for Voiceify to support
+labels: [model-request]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: Name and a link (Hugging Face, GitHub, paper)
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: License
+      description: Voiceify can only bundle support for models with licenses that allow it.
+      placeholder: "Apache-2.0"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What would it add?
+      description: New languages, voices, sound effects, better quality, smaller size …
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Does it already run on Apple silicon?
+      options:
+        - "Yes — there's an MLX version"
+        - "Yes — PyTorch / other"
+        - "Not sure"

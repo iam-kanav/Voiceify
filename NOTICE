@@ -1,0 +1,8 @@
+Voiceify
+Copyright 2026 Kanav Sethi
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Voiceify does not include any AI model weights. Models are downloaded at
+runtime from Hugging Face by the user and remain under their own licenses
+(see THIRD_PARTY_NOTICES.md).

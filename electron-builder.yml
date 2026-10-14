@@ -1,5 +1,6 @@
 appId: com.kanavsethi.voiceify
 productName: Voiceify
+copyright: Copyright © 2026 Kanav Sethi
 directories:
   buildResources: build
   output: dist

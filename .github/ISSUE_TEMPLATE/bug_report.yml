@@ -1,0 +1,51 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug! Please fill in as much as you can.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Text to Speech
+        2. Pick the voice …
+        3. Click Generate
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Voiceify version
+      description: Voiceify menu → About Voiceify
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: computer
+    attributes:
+      label: Computer
+      description: Chip, memory and OS version
+      placeholder: "MacBook Air M2, 16 GB, macOS 26.1"
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model in use
+      description: From the Models page, e.g. "Built-in Voices · Large · 8-bit"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Engine log
+      description: Settings → Voice engine → Technical details. Paste anything relevant.
+      render: text

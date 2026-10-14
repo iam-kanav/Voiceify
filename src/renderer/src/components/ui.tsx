@@ -118,7 +118,7 @@ export function Toggle({ checked, onChange, disabled }: { checked: boolean; onCh
       <motion.span
         layout
         transition={{ type: 'spring', stiffness: 600, damping: 35 }}
-        className={cn('absolute top-0.5 size-4 rounded-full bg-white shadow-sm', checked ? 'right-0.5' : 'left-0.5')}
+        className={cn('absolute top-0.5 size-4 rounded-full shadow-sm', checked ? 'right-0.5 bg-accent-ink' : 'left-0.5 bg-white')}
       />
     </button>
   )

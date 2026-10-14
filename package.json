@@ -2,9 +2,32 @@
   "name": "voiceify",
   "productName": "Voiceify",
   "version": "0.1.0",
-  "description": "Local, ElevenLabs-style voice studio for macOS powered by Qwen3-TTS on Apple Silicon (MLX).",
+  "description": "A private voice studio for your computer: text to speech, voice design and voice cloning with open-source AI models.",
+  "keywords": [
+    "text-to-speech",
+    "tts",
+    "voice-cloning",
+    "voice-design",
+    "qwen3-tts",
+    "mlx",
+    "apple-silicon",
+    "electron",
+    "mcp",
+    "local-ai"
+  ],
+  "homepage": "https://github.com/iam-kanav/Voiceify#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iam-kanav/Voiceify.git"
+  },
+  "bugs": {
+    "url": "https://github.com/iam-kanav/Voiceify/issues"
+  },
   "main": "out/main/index.js",
-  "author": "Kanav Sethi",
+  "author": {
+    "name": "Kanav Sethi",
+    "url": "https://github.com/iam-kanav"
+  },
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
@@ -39,5 +62,8 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "zustand": "^5.0.15"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

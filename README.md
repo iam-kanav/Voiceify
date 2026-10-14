@@ -1,108 +1,269 @@
-<img src="build/icon.png" width="96" height="96" alt="">
+<div align="center">
+
+<img src="build/icon.png" width="112" height="112" alt="Voiceify logo">
 
 # Voiceify
 
-A local, multi-model voice studio. Open-source voice models run on your own computer, with no cloud and no accounts; models, voices and audio never leave the machine. The first supported provider is **Qwen3-TTS** (plus Qwen3-ASR for transcription), and the catalog, engine and UI are built to add more.
+**A private voice studio that runs on your own computer.**<br>
+Text to speech, voice design and voice cloning with open-source AI models. No cloud, no accounts, no per-character fees.
 
-**Platforms:** macOS on Apple Silicon today (models run on the GPU via **MLX**). The app shell, downloader, runtime installer and UI are platform-neutral, so a Windows/Linux port needs a non-MLX inference backend (see *Porting* below).
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20silicon)-black?logo=apple)](#requirements)
+[![Latest release](https://img.shields.io/github/v/release/iam-kanav/Voiceify?include_prereleases&label=release)](https://github.com/iam-kanav/Voiceify/releases)
+[![CI](https://github.com/iam-kanav/Voiceify/actions/workflows/ci.yml/badge.svg)](https://github.com/iam-kanav/Voiceify/actions/workflows/ci.yml)
+[![MCP](https://img.shields.io/badge/MCP-built--in-8A2BE2)](#connect-ai-agents-mcp)
 
-> The UI is a temporary ElevenLabs-inspired design for testing features. All styling lives in design tokens (`src/renderer/src/styles.css`), so a redesign won't touch feature code.
+[**Download**](https://github.com/iam-kanav/Voiceify/releases/latest) · [Features](#features) · [Install](#install) · [Models](#models) · [AI agents](#connect-ai-agents-mcp) · [Contributing](CONTRIBUTING.md)
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/tts-dark.png">
+  <img src="docs/images/tts.png" alt="Voiceify text to speech screen" width="900">
+</picture>
+
+</div>
+
+## Why Voiceify?
+
+- **Private by design.** Your text, recordings and voices never leave your computer. After setup, everything works offline.
+- **Free to run.** No subscriptions or character quotas. Generate as much audio as your hardware allows.
+- **Studio-grade open models.** Ships with [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) (Apache-2.0), which supports 10 languages, 3-second voice cloning, and voices designed from a text description.
+- **Pick your trade-off.** Install the model sizes and precisions that suit your machine. Voiceify recommends a set based on your memory and shows the speed it actually measures on your computer.
+- **Built for agents.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Codex, Cursor and other assistants speak, design and clone voices.
+- **Made to grow.** Model providers and features plug into registries, so new model families and tools (sound effects, transcription, …) slot in cleanly.
+
+## Contents
+
+- [Features](#features)
+- [Install](#install)
+- [Models](#models)
+- [Connect AI agents (MCP)](#connect-ai-agents-mcp)
+- [Build from source](#build-from-source)
+- [How it works](#how-it-works)
+- [Roadmap](#roadmap)
+- [FAQ](#faq)
+- [Contributing](#contributing)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
 
 ## Features
 
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Text to speech</h3>
+      Nine built-in voices in 10 languages. Audio starts playing within a fraction of a second while the rest streams in. Steer delivery with plain-English <b>style instructions</b> such as “calm and slow” or “whisper”. Text of any length is split into segments automatically.
+    </td>
+    <td width="50%" valign="top">
+      <h3>Voice design</h3>
+      Describe a voice (“an elderly wizard with a deep, gravelly voice”), generate several takes, and save your favourite to your library.
+      <br><br>
+      <img src="docs/images/design.png" alt="Voice design">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Voice cloning</h3>
+      Drop in any audio or video file, or record from your microphone. Voiceify trims it, transcribes it locally, and clones the voice from as little as 3 seconds.
+      <br><br>
+      <img src="docs/images/clone.png" alt="Voice cloning">
+    </td>
+    <td width="50%" valign="top">
+      <h3>Voice library</h3>
+      Built-in, designed and cloned voices in one place, with previews, search and one-click “Use”.
+      <br><br>
+      <img src="docs/images/voices.png" alt="Voice library">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Model manager</h3>
+      Every model size and precision in one place, with plain-language explanations, recommendations for your hardware, measured speed, and fast resumable downloads. You can also add community fine-tunes from Hugging Face.
+      <br><br>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/models-dark.png">
+        <img src="docs/images/models.png" alt="Model manager">
+      </picture>
+    </td>
+    <td width="50%" valign="top">
+      <h3>Agents &amp; MCP</h3>
+      A built-in MCP server and REST API, with copy-paste setup for Claude Code, Codex, OpenCode, Cursor, Claude Desktop, VS Code, Zed and Gemini CLI.
+      <br><br>
+      <img src="docs/images/agents.png" alt="Agents and MCP">
+    </td>
+  </tr>
+</table>
+
+Also included: a full generation history saved as WAV, light and dark themes, a first-run setup wizard, and streaming playback with a seekable waveform.
+
+## Install
+
+### Requirements
+
 | | |
 |---|---|
-| **Text to Speech** (start screen) | Built-in model voices, 10 languages, streaming playback (~300 ms to first audio), natural-language style instructions, temperature / top-p / top-k / repetition penalty. No length limit: long text is split into segments automatically. |
-| **Create Voice** | *Design*: describe a voice in words → several previews → save. *Clone*: drop any audio or video file, or record from the mic. It's auto-transcribed and cloned; with no transcript it falls back to timbre-only (x-vector) mode. |
-| **Voices** | Built-in, cloned and designed voices, with previews |
-| **History** | Every generation saved as WAV: replay, save a copy, reveal in Finder, reopen in Text to Speech |
-| **Models** | Grouped by what they do (Built-in Voices, Voice Cloning, Voice Design, Transcription), each in Large/Small and Full precision / 8 / 6 / 5 / 4-bit, with plain-language explanations, recommendations based on your computer's memory, and speed measured on your own machine. Community fine-tunes and any Hugging Face repo can be added. |
-| **Agents & MCP** | Built-in MCP server (Streamable HTTP and a stdio bridge) plus a REST API, with copy-paste configs for Claude Code, Codex, OpenCode, Cursor, Claude Desktop, VS Code, Zed and Gemini CLI |
+| **Computer** | Mac with Apple silicon (M1 or newer). Windows and Linux are [on the roadmap](#roadmap). |
+| **Memory** | 8 GB minimum; 16 GB or more recommended for the Large models |
+| **Disk** | About 1 GB for the app and engine, plus 1–4.5 GB per model |
+| **Internet** | Only for the first-run download of the engine and models |
 
-## Run it
+### Download
 
-```bash
-npm install
-npm run dev          # launches the app; first run is a setup wizard (engine + models)
-npm run dist:mac     # builds dist/Voiceify-<version>-arm64.dmg
-npm run dist:dir     # builds dist/mac-arm64/Voiceify.app (faster, no DMG)
-```
+1. Download the latest `Voiceify-*.dmg` from [**Releases**](https://github.com/iam-kanav/Voiceify/releases/latest).
+2. Open the DMG and drag **Voiceify** to **Applications**.
+3. The first time you open it, macOS may block it because the app isn't notarized yet. Go to **System Settings → Privacy & Security** and click **Open Anyway**. You only need to do this once.
+4. Follow the setup wizard. It installs the local voice engine (about 350 MB) and the models recommended for your Mac.
 
-On first launch a setup wizard installs the app's own inference runtime into `~/Library/Application Support/Voiceify/engine` (uv → CPython 3.12 → `mlx-audio`, about 350 MB). Your system Python is never touched.
+## Models
 
-## Model guide
+Voiceify names models by what they do and always shows the open-source model underneath.
 
-| In the app | Open-source model | What it's for |
+| In Voiceify | Open-source model | What it's for |
 |---|---|---|
-| Built-in Voices · Large | Qwen3-TTS 1.7B CustomVoice | 9 built-in voices + style instructions (emotion, tone, pace) |
-| Built-in Voices · Small | Qwen3-TTS 0.6B CustomVoice | Same voices, faster and lighter, no style instructions |
-| Voice Design | Qwen3-TTS 1.7B VoiceDesign | Invent a voice from a written description |
-| Voice Cloning · Large / Small | Qwen3-TTS 1.7B / 0.6B Base | Copy a voice from 3+ seconds of audio; also speaks saved designed voices |
-| Transcription · Small / Large | Qwen3-ASR 0.6B / 1.7B | Fills in clone transcripts automatically |
+| **Built-in Voices** · Large | Qwen3-TTS 1.7B CustomVoice | 9 voices with style instructions (emotion, tone, pace) |
+| **Built-in Voices** · Small | Qwen3-TTS 0.6B CustomVoice | The same voices, faster and lighter, without style instructions |
+| **Voice Design** | Qwen3-TTS 1.7B VoiceDesign | Invents a voice from a written description |
+| **Voice Cloning** · Large / Small | Qwen3-TTS 1.7B / 0.6B Base | Copies a voice from audio; also speaks your saved designed voices |
+| **Transcription** · Small / Large | Qwen3-ASR 0.6B / 1.7B | Auto-fills transcripts when cloning (optional helper) |
 
-Every model comes in **Full precision** and **8 / 6 / 5 / 4-bit** versions. Fewer bits mean a smaller download, less memory and faster speech, at some cost to expressiveness; 8-bit is near-indistinguishable from full precision. Recommendations adapt to the computer's memory (≤8 GB → Small 8-bit, ≤24 GB → Large 8-bit, more → Full precision), and the Models page shows the speed actually measured on your machine. For reference, the official Qwen3-TTS-12Hz-1.7B-Base model card reports 1.24 WER on Seed-TTS test-en.
+Every model comes in **full precision** and in compressed **8 / 6 / 5 / 4-bit** versions. Fewer bits mean a smaller download, less memory and faster speech, at some cost to expressiveness. 8-bit sounds almost identical to full precision and is the default recommendation for most machines.
 
-## Connect an agent
+Weights are downloaded from Hugging Face ([mlx-community](https://huggingface.co/mlx-community) conversions of the official Qwen releases). Voiceify itself contains no model weights.
 
-With the app running, the MCP server listens on `http://127.0.0.1:47821/mcp`:
+## Connect AI agents (MCP)
+
+With Voiceify running, its MCP server listens on `http://127.0.0.1:47821/mcp`. For example, with Claude Code:
 
 ```bash
 claude mcp add --transport http voiceify http://127.0.0.1:47821/mcp
 ```
 
-Stdio-only clients use the bundled bridge, which also launches the app if it isn't running:
+Then just ask: *“Read the release notes aloud in the Aiden voice, calm and professional.”* Stdio-only clients can use the bundled bridge, and the **Agents & MCP** page shows the exact config for each supported client.
 
-```json
-{ "command": "/Applications/Voiceify.app/Contents/MacOS/Voiceify",
-  "args": ["/Applications/Voiceify.app/Contents/Resources/mcp/stdio-bridge.mjs"],
-  "env": { "ELECTRON_RUN_AS_NODE": "1" } }
+| Tool | What it does |
+|---|---|
+| `text_to_speech` | Speak text with any voice, with optional style instructions, language and in-app playback |
+| `list_voices` | List built-in, cloned and designed voices |
+| `design_voice` | Invent a voice from a description and optionally save it |
+| `clone_voice` | Clone a voice from an audio file (auto-transcribed) |
+| `transcribe_audio` | Convert speech in a local audio file to text |
+| `play_audio`, `list_history` | Replay and browse past generations |
+| `list_models`, `install_model`, `get_status` | Inspect and manage models |
+
+There's also a small REST API:
+
+```bash
+curl -s "http://127.0.0.1:47821/api/tts?format=wav" \
+  -H 'content-type: application/json' \
+  -d '{"text":"Hello from Voiceify!","voice":"Ryan","instructions":"Cheerful"}' -o hello.wav
 ```
 
-Tools: `text_to_speech`, `list_voices`, `design_voice`, `clone_voice`, `transcribe_audio`, `play_audio`, `list_history`, `list_models`, `install_model`, `get_status`. The **Agents & MCP** page shows the exact config for each client.
+The server only accepts connections from your own computer and rejects requests from web pages.
 
-REST: `POST /api/tts` (`?format=wav` returns audio), `GET /api/voices|models|history|status`, `GET /api/audio/:id`. The server binds to 127.0.0.1 only and rejects cross-origin browser requests.
+## Build from source
 
-## Architecture
-
+```bash
+git clone https://github.com/iam-kanav/Voiceify.git
+cd Voiceify
+npm install
+npm run dev        # run with hot reload
+npm run typecheck  # type-check main + renderer
+npm run dist:mac   # build a DMG into dist/
 ```
+
+You'll need Node.js 22+ on an Apple silicon Mac. Python isn't required: the app installs its own isolated runtime (uv → CPython 3.12 → MLX) on first run.
+
+## How it works
+
+```mermaid
+flowchart LR
+  UI["React UI<br/>(renderer)"] <-- IPC --> Main["Electron main<br/>studio service"]
+  Agents["AI agents<br/>(MCP / REST)"] <-- "HTTP 127.0.0.1" --> Main
+  Main <-- "JSON over stdio" --> Engine["Python engine<br/>MLX + mlx-audio"]
+  Main -- "parallel, resumable downloads" --> HF[("Hugging Face")]
+  Engine --> GPU["Apple GPU"]
+```
+
+- **One service, three front doors.** The UI, the REST API and the MCP server all call the same `studio` service, so they behave identically.
+- **Sidecar engine.** A long-lived Python process loads models with MLX, streams PCM audio back as it's generated, and keeps a small LRU cache of loaded models.
+- **Registries for growth.** `src/shared/catalog.ts` (providers and models) and `src/renderer/src/app/registry.tsx` (features) drive the Models page, setup wizard, recommendations, sidebar and routing.
+
+<details>
+<summary><b>Project layout</b></summary>
+
+```text
 src/
-  shared/            types, model catalog + recommendations, preset voices, IPC contract
-  main/              Electron main process
-    engine/          runtime installer (uv/venv) + JSON-over-stdio client for the Python sidecar
-    models/          HF downloader (parallel ranged chunks, resumable), convert, registry
-    library/         voices + history stores
-    services/        studio.ts: the one API that IPC, REST and MCP all call
-    api/             local HTTP server: /mcp (MCP SDK) + /api/*
-  preload/           typed window.studio bridge
-  renderer/          React 19 + Tailwind 4 + Motion
-    app/registry.tsx feature registry: sidebar, routing, code-splitting
-    features/*       one folder per page
+  shared/          catalog (providers, models, recommendations), voices, IPC contract
+  main/            Electron main: engine supervisor, model downloader, library, API + MCP
+  preload/         typed window.studio bridge
+  renderer/        React 19 + Tailwind 4 + Motion; one folder per feature
 resources/
-  engine/server.py   MLX inference sidecar (single worker thread, LRU model cache, streaming)
-  mcp/stdio-bridge.mjs
+  engine/          Python inference sidecar (server.py)
+  mcp/             stdio bridge for MCP clients without HTTP support
+docs/images/       README screenshots
 ```
 
-### Adding a model provider
+</details>
 
-1. Add a `Provider` and its variants to `src/shared/catalog.ts` (`provider`, `task`, `capabilities`, `source`).
-2. Teach the engine to load and run it (`resources/engine/server.py`: `ModelCache.get` + a handler).
-3. The Models page, onboarding, recommendations, TTS model picker and MCP `list_models` pick it up from the catalog.
+<details>
+<summary><b>Adding a model provider or a feature</b></summary>
 
-### Adding a feature (e.g. Sound Effects)
+- **Model provider:** add a `Provider` and its variants to `src/shared/catalog.ts`, then teach `resources/engine/server.py` to load and run it. The Models page, setup wizard, recommendations and MCP pick it up automatically.
+- **Feature (e.g. Sound Effects):** add a page in `src/renderer/src/features/`, register it in `app/registry.tsx`, add an engine handler and a service function, and optionally expose an MCP tool.
 
-1. **UI:** create `src/renderer/src/features/sound-effects/index.tsx` and point its entry in `app/registry.tsx` at it (`status: 'ready'`).
-2. **Engine:** add a handler to `HANDLERS` in `resources/engine/server.py` (e.g. `"sfx.generate"`).
-3. **Models:** add catalog entries in `src/shared/catalog.ts` with a new `task`.
-4. **Service + agents:** add a function in `src/main/services/`, an IPC method in `src/shared/ipc.ts`, and optionally an MCP tool in `src/main/api/mcp.ts`.
+</details>
 
-### Porting to Windows / Linux
+## Roadmap
 
-Already platform-aware: paths come from Electron's `userData`; the runtime installer downloads the right `uv` build per OS/CPU and uses `Scripts/python.exe` on Windows; the downloader, catalog, MCP/REST server and UI have no macOS dependencies. What's missing is an inference backend: `SystemInfo.backend` is `'mlx'` on Apple Silicon and `null` elsewhere. Add a backend (e.g. PyTorch + CUDA/DirectML, or ONNX), install it in `runtime.ts`, load it in `server.py`, and add matching catalog sources.
+- [x] Text to speech, voice design and voice cloning with Qwen3-TTS
+- [x] Model manager with size and precision options and hardware-aware recommendations
+- [x] Built-in MCP server and REST API
+- [ ] Speech to text page (Qwen3-ASR)
+- [ ] Sound effects generation
+- [ ] More model providers
+- [ ] Windows and Linux support (needs a non-MLX inference backend)
+- [ ] Signed and notarized macOS builds
 
-## Data
+Have an idea? [Open a feature request](https://github.com/iam-kanav/Voiceify/issues/new/choose).
 
-Everything lives in Electron's per-user data folder (`~/Library/Application Support/Voiceify/` on macOS): `engine/`, `models/`, `voices/`, `history/`, `data/*.json`. For testing, `VOICEIFY_USER_DATA=/some/dir` runs a throwaway profile.
+## FAQ
+
+<details>
+<summary><b>Does it work offline?</b></summary>
+
+Yes. You need internet once to download the engine and models. After that, generation, cloning and design all run locally.
+</details>
+
+<details>
+<summary><b>Where is my data stored, and how do I uninstall?</b></summary>
+
+Models, voices, history and the engine live in `~/Library/Application Support/Voiceify`. Use **Settings → Storage → Open folder** to find it. To uninstall, delete the app and that folder.
+</details>
+
+<details>
+<summary><b>Which model should I pick?</b></summary>
+
+Let the setup wizard decide: it recommends models based on your memory. As a rule of thumb, use **Large · 8-bit** on 16 GB machines, **Small · 8-bit** on 8 GB, and **full precision** if you have 32 GB or more.
+</details>
+
+<details>
+<summary><b>Can I use cloned voices commercially?</b></summary>
+
+The models are Apache-2.0, but you are responsible for having the rights and consent to clone a person's voice. Please don't use Voiceify for impersonation, fraud or harassment.
+</details>
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md). For security issues, see [SECURITY.md](SECURITY.md).
+
+## Acknowledgements
+
+- The [Qwen team](https://github.com/QwenLM) for releasing Qwen3-TTS and Qwen3-ASR under Apache-2.0
+- [Apple MLX](https://github.com/ml-explore/mlx) and [mlx-audio](https://github.com/Blaizzy/mlx-audio) for fast on-device inference
+- [mlx-community](https://huggingface.co/mlx-community) for the MLX model conversions
+- Everyone behind the libraries listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 ## License
 
-App code: Apache-2.0. Qwen3-TTS and Qwen3-ASR weights: Apache-2.0 (Alibaba Qwen team).
+Voiceify is released under the [Apache License 2.0](LICENSE). Model weights are downloaded separately and keep their own licenses (all Apache-2.0 at present); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

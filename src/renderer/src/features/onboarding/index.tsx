@@ -40,7 +40,7 @@ const GROUPS: { cap: Capability; familyIds: string[]; title: string; body: strin
   },
   {
     cap: 'transcribe',
-    familyIds: ['qwen3-asr'],
+    familyIds: ['qwen3-asr-0.6b', 'qwen3-asr-1.7b'],
     title: 'Auto-transcription',
     body: 'Fills in voice-clone transcripts for you',
     colors: ['#f97316', '#eab308']
