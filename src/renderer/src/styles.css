@@ -1,0 +1,187 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. Modeled on the ElevenLabs app: white canvas, near-black ink, soft gray borders,
+ * pill buttons. Everything reads from CSS variables so a future redesign only touches this file.
+ */
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-subtle: var(--c-subtle);
+  --color-muted: var(--c-muted);
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-ink-3: var(--c-ink-3);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-accent: var(--c-accent);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-danger: #e5484d;
+  --color-success: #30a46c;
+  --color-warn: #f5a524;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root {
+  --c-canvas: #ffffff;
+  --c-surface: #ffffff;
+  --c-subtle: #f7f7f8;
+  --c-muted: #f1f1f2;
+  --c-ink: #0b0b0c;
+  --c-ink-2: #55565b;
+  --c-ink-3: #8b8c92;
+  --c-line: #ebebed;
+  --c-line-strong: #dcdce0;
+  --c-accent: #0b0b0c;
+  --c-accent-ink: #ffffff;
+  color-scheme: light;
+}
+
+.dark {
+  --c-canvas: #0b0b0c;
+  --c-surface: #141416;
+  --c-subtle: #18181b;
+  --c-muted: #222226;
+  --c-ink: #f4f4f5;
+  --c-ink-2: #b4b4bb;
+  --c-ink-3: #7c7c85;
+  --c-line: #26262b;
+  --c-line-strong: #34343a;
+  --c-accent: #f4f4f5;
+  --c-accent-ink: #0b0b0c;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+textarea,
+input,
+[contenteditable] {
+  user-select: text;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--c-ink) 14%, transparent);
+}
+
+/* macOS window drag regions */
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag,
+.drag button,
+.drag a,
+.drag input {
+  -webkit-app-region: no-drag;
+}
+
+/* Thin overlay-style scrollbars */
+.scroll {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-line-strong) transparent;
+}
+
+/* Range input (sliders) */
+input[type='range'].slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+input[type='range'].slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--c-ink) 0%,
+    var(--c-ink) var(--fill, 50%),
+    var(--c-line-strong) var(--fill, 50%),
+    var(--c-line-strong) 100%
+  );
+}
+input[type='range'].slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 999px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-strong);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+  transition: transform 0.15s var(--ease-out-expo);
+}
+input[type='range'].slider:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+/* Generating shimmer for buttons */
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.shimmer {
+  background-image: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.22) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.kbd {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--c-line-strong);
+  color: var(--c-ink-3);
+}

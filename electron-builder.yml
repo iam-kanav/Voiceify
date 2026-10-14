@@ -1,0 +1,28 @@
+appId: com.kanavsethi.voiceify
+productName: Voiceify
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+extraResources:
+  - from: resources/engine
+    to: engine
+  - from: resources/mcp
+    to: mcp
+  - from: resources/icon.png
+    to: icon.png
+asarUnpack:
+  - "**/*.node"
+mac:
+  target:
+    - target: dmg
+      arch: [arm64]
+  category: public.app-category.music
+  icon: build/icon.icns
+  extendInfo:
+    NSMicrophoneUsageDescription: Record reference audio for instant voice cloning.
+  identity: null
+npmRebuild: false

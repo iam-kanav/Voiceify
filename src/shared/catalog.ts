@@ -1,0 +1,325 @@
+import type { Capability, ModelVariant, Provider, Quant, SystemInfo } from './types'
+
+/** Model providers. Add an entry here (plus catalog variants and an engine handler) to support a new family. */
+export const PROVIDERS: Provider[] = [
+  {
+    id: 'qwen3-tts',
+    name: 'Qwen3-TTS',
+    vendor: 'Alibaba Qwen',
+    license: 'Apache-2.0',
+    url: 'https://huggingface.co/collections/Qwen/qwen3-tts',
+    description: 'Multilingual TTS with preset voices, voice design and 3-second cloning. 10 languages.'
+  },
+  {
+    id: 'qwen3-asr',
+    name: 'Qwen3-ASR',
+    vendor: 'Alibaba Qwen',
+    license: 'Apache-2.0',
+    url: 'https://huggingface.co/collections/Qwen/qwen3-asr',
+    description: 'Speech recognition, used to transcribe voice-clone references.'
+  }
+]
+
+/**
+ * The model catalog. Every downloadable model lives here; the UI, recommendation engine, MCP
+ * server and engine all read from it. To support a new task (e.g. sound effects), add entries
+ * with a new `task` and a matching engine handler.
+ *
+ * Sizes are exact repo totals from the Hugging Face API (weights + speech tokenizer).
+ */
+
+const QUANTS: Quant[] = ['bf16', '8bit', '6bit', '5bit', '4bit']
+
+// Relative scores. 8-bit is practically lossless for these models; 4-bit audibly flattens delivery.
+const QUANT_QUALITY: Record<Quant, number> = { '4bit': 3, '5bit': 3.5, '6bit': 4, '8bit': 4.75, bf16: 5 }
+const QUANT_SPEED: Record<Quant, number> = { '4bit': 5, '5bit': 4.75, '6bit': 4.5, '8bit': 4, bf16: 3 }
+
+/** Plain-language explanation of each precision level (shown in tooltips and pickers). */
+export const PRECISION_INFO: Record<Quant, { label: string; note: string }> = {
+  bf16: { label: 'Full precision', note: 'The original, uncompressed model. Highest fidelity, but the largest and slowest.' },
+  '8bit': { label: '8-bit', note: 'Compressed to 8 bits per weight. Sounds virtually identical to full precision while being smaller and faster.' },
+  '6bit': { label: '6-bit', note: 'Smaller and faster again, with a slight loss of expressiveness.' },
+  '5bit': { label: '5-bit', note: 'Smaller still; delivery can occasionally sound flatter.' },
+  '4bit': { label: '4-bit', note: 'Smallest and fastest. Noticeably flatter, less expressive delivery.' }
+}
+
+export const PRECISION_HELP =
+  'Precision is how much a model is compressed. Fewer bits = smaller download, less memory and faster speech, at some cost to expressiveness. 8-bit is the sweet spot for most computers.'
+
+export const SIZE_HELP =
+  'Large models sound more natural and follow instructions better. Small models are faster and use less memory.'
+
+/** What each kind of model is for, in plain language. Shown as section headers and in pickers. */
+export const ROLES: Record<string, { label: string; blurb: string; why: string }> = {
+  'built-in-voices': {
+    label: 'Built-in Voices',
+    blurb: 'Speaks your text with 9 professionally recorded voices in 10 languages.',
+    why: 'Use this for everyday text to speech. The Large version also follows style instructions like “whisper” or “sound excited”.'
+  },
+  'voice-design': {
+    label: 'Voice Design',
+    blurb: 'Invents a brand-new voice from a written description.',
+    why: 'Needed for Create Voice → Design. Describe age, accent, tone and pace and it creates a matching voice.'
+  },
+  'voice-cloning': {
+    label: 'Voice Cloning',
+    blurb: 'Copies a voice from a few seconds of audio.',
+    why: 'Needed for Create Voice → Clone, and to speak with any voice you cloned or designed and saved.'
+  },
+  transcription: {
+    label: 'Transcription',
+    blurb: 'Writes down what is said in an audio clip.',
+    why: 'Optional helper: fills in the transcript when you clone a voice, which makes clones noticeably more accurate.'
+  },
+  community: {
+    label: 'Community Fine-tunes',
+    blurb: 'Variants trained by the open-source community for special skills.',
+    why: 'Optional extras. They are converted to run on your computer after download.'
+  },
+  custom: {
+    label: 'Custom Models',
+    blurb: 'Models you added from Hugging Face.',
+    why: 'Advanced: any compatible model repository you add yourself.'
+  }
+}
+
+interface FamilyDef {
+  familyId: string
+  params: '0.6B' | '1.7B'
+  kind: 'Base' | 'CustomVoice' | 'VoiceDesign'
+  roleId: keyof typeof ROLES
+  capabilities: Capability[]
+  description: string
+  sizes: Record<Quant, number>
+}
+
+const FAMILIES: FamilyDef[] = [
+  {
+    familyId: 'qwen3-tts-1.7b-customvoice',
+    params: '1.7B',
+    kind: 'CustomVoice',
+    roleId: 'built-in-voices',
+    capabilities: ['preset-voices', 'instruct'],
+    description: 'Most natural delivery, and follows style instructions (emotion, tone, pace).',
+    sizes: { '4bit': 2312059416, '5bit': 2504079912, '6bit': 2696100432, '8bit': 3080141538, bf16: 4520195613 }
+  },
+  {
+    familyId: 'qwen3-tts-0.6b-customvoice',
+    params: '0.6B',
+    kind: 'CustomVoice',
+    roleId: 'built-in-voices',
+    capabilities: ['preset-voices'],
+    description: 'Same voices, faster and lighter. Does not follow style instructions.',
+    sizes: { '4bit': 1693604738, '5bit': 1763597582, '6bit': 1833590308, '8bit': 1973575388, bf16: 2498419405 }
+  },
+  {
+    familyId: 'qwen3-tts-1.7b-voicedesign',
+    params: '1.7B',
+    kind: 'VoiceDesign',
+    roleId: 'voice-design',
+    capabilities: ['voice-design', 'instruct'],
+    description: 'The only Voice Design size released.',
+    sizes: { '4bit': 2312058795, '5bit': 2504079291, '6bit': 2696099811, '8bit': 3080140867, bf16: 4520194992 }
+  },
+  {
+    familyId: 'qwen3-tts-1.7b-base',
+    params: '1.7B',
+    kind: 'Base',
+    roleId: 'voice-cloning',
+    capabilities: ['voice-clone'],
+    description: 'Closest match to the original speaker and the most stable output.',
+    sizes: { '4bit': 2336076686, '5bit': 2528097176, '6bit': 2720117690, '8bit': 3104158788, bf16: 4544212739 }
+  },
+  {
+    familyId: 'qwen3-tts-0.6b-base',
+    params: '0.6B',
+    kind: 'Base',
+    roleId: 'voice-cloning',
+    capabilities: ['voice-clone'],
+    description: 'Faster and lighter cloning; still a good match, especially in English.',
+    sizes: { '4bit': 1711328624, '5bit': 1781321436, '6bit': 1851314126, '8bit': 1991299138, bf16: 2516143009 }
+  }
+]
+
+const sizeLabel = (params: string) => (params === '0.6B' ? 'Small' : 'Large')
+
+function summaryFor(params: string, q: Quant) {
+  const small = params === '0.6B'
+  if (q === 'bf16') return small ? 'Small, uncompressed' : 'Maximum fidelity · needs the most memory'
+  if (q === '8bit') return small ? 'Fast and light · good quality' : 'Best balance of quality and speed'
+  if (q === '6bit') return small ? 'Very fast and light' : 'A little smaller and faster'
+  if (q === '5bit') return 'Smaller · slight quality loss'
+  return small ? 'Smallest and fastest · basic quality' : 'Smallest and fastest · flatter delivery'
+}
+
+const official: ModelVariant[] = FAMILIES.flatMap((f) =>
+  QUANTS.map((q) => {
+    const sizeGB = f.sizes[q] / 1e9
+    const paramBoost = f.params === '1.7B' ? 0 : -0.75
+    const role = ROLES[f.roleId].label
+    return {
+      id: `${f.familyId}-${q}`,
+      provider: 'qwen3-tts',
+      name: `${role} · ${sizeLabel(f.params)} · ${PRECISION_INFO[q].label}`,
+      family: `${role} · ${sizeLabel(f.params)}`,
+      familyId: f.familyId,
+      role,
+      roleId: f.roleId,
+      sizeLabel: sizeLabel(f.params),
+      precisionLabel: PRECISION_INFO[q].label,
+      summary: summaryFor(f.params, q),
+      officialName: `Qwen3-TTS ${f.params} ${f.kind}`,
+      task: 'tts' as const,
+      capabilities: f.capabilities,
+      params: f.params,
+      quant: q,
+      source: { type: 'hf-mlx' as const, repo: `mlx-community/Qwen3-TTS-12Hz-${f.params}-${f.kind}-${q}` },
+      sizeBytes: f.sizes[q],
+      quality: Math.max(1, Math.min(5, QUANT_QUALITY[q] + paramBoost)),
+      speed: Math.min(5, QUANT_SPEED[q] + (f.params === '0.6B' ? 0.75 : -0.25)),
+      minRamGB: Math.ceil(sizeGB * 1.6 + 2),
+      description: f.description,
+      tags: [f.params]
+    }
+  })
+)
+
+const helpers: ModelVariant[] = [
+  {
+    id: 'qwen3-asr-0.6b-8bit',
+    provider: 'qwen3-asr',
+    name: 'Transcription · Small · 8-bit',
+    family: 'Transcription · Small',
+    familyId: 'qwen3-asr-0.6b',
+    role: 'Transcription',
+    roleId: 'transcription',
+    sizeLabel: 'Small',
+    precisionLabel: '8-bit',
+    summary: 'Fast and accurate for clean recordings',
+    officialName: 'Qwen3-ASR 0.6B',
+    task: 'asr',
+    capabilities: ['transcribe'],
+    params: '0.6B',
+    quant: '8bit',
+    source: { type: 'hf-mlx', repo: 'mlx-community/Qwen3-ASR-0.6B-8bit' },
+    sizeBytes: 1010773761,
+    quality: 4,
+    speed: 5,
+    minRamGB: 4,
+    description: 'Fast and accurate for clean recordings.',
+    tags: ['0.6B']
+  },
+  {
+    id: 'qwen3-asr-1.7b-8bit',
+    provider: 'qwen3-asr',
+    name: 'Transcription · Large · 8-bit',
+    family: 'Transcription · Large',
+    familyId: 'qwen3-asr-1.7b',
+    role: 'Transcription',
+    roleId: 'transcription',
+    sizeLabel: 'Large',
+    precisionLabel: '8-bit',
+    summary: 'More accurate for noisy or accented audio',
+    officialName: 'Qwen3-ASR 1.7B',
+    task: 'asr',
+    capabilities: ['transcribe'],
+    params: '1.7B',
+    quant: '8bit',
+    source: { type: 'hf-mlx', repo: 'mlx-community/Qwen3-ASR-1.7B-8bit' },
+    sizeBytes: 2467859030,
+    quality: 5,
+    speed: 4,
+    minRamGB: 6,
+    description: 'More accurate for noisy or accented audio.',
+    tags: ['1.7B']
+  }
+]
+
+const community: ModelVariant[] = [
+  {
+    id: 'spragai-emotion-tags-1.7b-8bit',
+    provider: 'qwen3-tts',
+    name: 'Emotion Tags · Large · 8-bit',
+    family: 'Emotion Tags (community)',
+    familyId: 'community-emotion-tags',
+    role: 'Community Fine-tunes',
+    roleId: 'community',
+    sizeLabel: 'Large',
+    precisionLabel: '8-bit',
+    summary: 'Built-in voices + inline emotion tags',
+    officialName: 'SpragAI/qwen3-tts-emotion-tags (fine-tune of Qwen3-TTS 1.7B CustomVoice)',
+    task: 'tts',
+    capabilities: ['preset-voices', 'instruct', 'emotion-tags'],
+    params: '1.7B',
+    quant: '8bit',
+    source: { type: 'hf-convert', repo: 'SpragAI/qwen3-tts-emotion-tags', qBits: 8 },
+    sizeBytes: 4523160708,
+    quality: 4.5,
+    speed: 4,
+    minRamGB: 10,
+    description:
+      'The built-in voices, plus emotion tags you can type inline: [Angry] [Sad] [Happy] [Fast] [Gentle] [Tired] [Fearful] [Disgusted] [Surprised]. English only. Converted to run on your computer after download.',
+    tags: ['Fine-tuned', 'English'],
+    community: true
+  }
+]
+
+export const CATALOG: ModelVariant[] = [...official, ...helpers, ...community]
+
+export const CATALOG_BY_ID = new Map(CATALOG.map((m) => [m.id, m]))
+
+export function hasCapability(m: ModelVariant, c: Capability) {
+  return m.capabilities.includes(c)
+}
+
+/**
+ * Recommend one model per core capability based on this computer's memory. Every variant runs on
+ * any supported device with enough memory; the picks favour 8-bit, which keeps near-full quality while
+ * using a third less memory and running faster than full precision.
+ */
+export function recommendationsFor(sys: SystemInfo): Map<string, string> {
+  const rec = new Map<string, string>()
+  const mem = sys.memoryGB
+  const pick = (family: string, q: Quant, reason: string) => rec.set(`${family}-${q}`, reason)
+
+  if (!sys.backend) return rec
+  if (mem <= 8) {
+    const why = `Light enough for ${mem} GB of memory`
+    pick('qwen3-tts-0.6b-customvoice', '8bit', why)
+    pick('qwen3-tts-0.6b-base', '8bit', why)
+    pick('qwen3-tts-1.7b-voicedesign', '4bit', `Smallest Voice Design option, to fit in ${mem} GB`)
+  } else if (mem <= 24) {
+    const why = `Best balance of quality and speed for ${mem} GB of memory`
+    pick('qwen3-tts-1.7b-customvoice', '8bit', why)
+    pick('qwen3-tts-1.7b-base', '8bit', why)
+    pick('qwen3-tts-1.7b-voicedesign', '8bit', why)
+  } else {
+    const why = `${mem} GB of memory is enough for full quality`
+    pick('qwen3-tts-1.7b-customvoice', 'bf16', why)
+    pick('qwen3-tts-1.7b-base', 'bf16', why)
+    pick('qwen3-tts-1.7b-voicedesign', 'bf16', why)
+  }
+  rec.set('qwen3-asr-0.6b-8bit', 'Small and fast; fills in clone transcripts')
+  return rec
+}
+
+export const LANGUAGES = [
+  { id: 'auto', label: 'Auto-detect' },
+  { id: 'english', label: 'English' },
+  { id: 'chinese', label: 'Chinese' },
+  { id: 'japanese', label: 'Japanese' },
+  { id: 'korean', label: 'Korean' },
+  { id: 'german', label: 'German' },
+  { id: 'french', label: 'French' },
+  { id: 'russian', label: 'Russian' },
+  { id: 'portuguese', label: 'Portuguese' },
+  { id: 'spanish', label: 'Spanish' },
+  { id: 'italian', label: 'Italian' }
+]
+
+export function formatBytes(n: number) {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(n >= 1e10 ? 0 : 1)} GB`
+  if (n >= 1e6) return `${(n / 1e6).toFixed(0)} MB`
+  if (n >= 1e3) return `${(n / 1e3).toFixed(0)} KB`
+  return `${n} B`
+}
