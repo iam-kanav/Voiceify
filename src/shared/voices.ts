@@ -1,49 +1,12 @@
-import type { AppSettings, GenerationSettings, Voice } from './types'
+import type { AppSettings, GenerationSettings } from './types'
 
-/** Preset speakers shipped inside provider models (Qwen3-TTS CustomVoice: 9 speakers). */
-export const PRESET_VOICES: Voice[] = [
-  preset('Ryan', 'male', 'English', 'Dynamic male voice with strong rhythmic drive.', ['Energetic', 'Narration'], ['#f97316', '#db2777']),
-  preset('Aiden', 'male', 'English', 'Sunny American male voice with a clear midrange.', ['Friendly', 'Conversational'], ['#0ea5e9', '#6366f1']),
-  preset('Vivian', 'female', 'Chinese', 'Bright, slightly edgy young female voice.', ['Bright', 'Expressive'], ['#ec4899', '#8b5cf6']),
-  preset('Serena', 'female', 'Chinese', 'Warm, gentle young female voice.', ['Warm', 'Soft'], ['#f59e0b', '#ef4444']),
-  preset('Uncle_Fu', 'male', 'Chinese', 'Seasoned male voice with a low, mellow timbre.', ['Deep', 'Mature'], ['#78716c', '#0f766e'], 'Uncle Fu'),
-  preset('Dylan', 'male', 'Chinese', 'Youthful Beijing male voice with a clear, natural timbre.', ['Beijing dialect', 'Young'], ['#22c55e', '#0891b2']),
-  preset('Eric', 'male', 'Chinese', 'Lively Chengdu male voice with a slightly husky brightness.', ['Sichuan dialect', 'Lively'], ['#eab308', '#16a34a']),
-  preset('Ono_Anna', 'female', 'Japanese', 'Playful Japanese female voice with a light, nimble timbre.', ['Playful', 'Light'], ['#f472b6', '#38bdf8'], 'Ono Anna'),
-  preset('Sohee', 'female', 'Korean', 'Warm Korean female voice with rich emotion.', ['Warm', 'Emotive'], ['#a855f7', '#f43f5e'])
-]
-
-function preset(
-  speaker: string,
-  gender: 'male' | 'female',
-  language: string,
-  description: string,
-  tags: string[],
-  colors: [string, string],
-  name = speaker
-): Voice {
-  return {
-    id: `preset:${speaker.toLowerCase()}`,
-    name,
-    kind: 'preset',
-    provider: 'qwen3-tts',
-    speaker,
-    gender,
-    language,
-    description,
-    tags,
-    colors,
-    createdAt: 0
-  }
-}
+/** Built-in voices of every provider (defined in providers.ts). */
+export { PRESET_VOICES } from './providers'
 
 export const DEFAULT_GENERATION: GenerationSettings = {
   language: 'auto',
-  temperature: 0.9,
-  topP: 1.0,
-  topK: 50,
-  repetitionPenalty: 1.05,
-  instruct: ''
+  instruct: '',
+  params: {}
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -52,6 +15,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   apiEnabled: true,
   maxLoadedModels: 1,
   defaultModels: {},
+  defaultProvider: 'qwen3-tts',
   onboardingComplete: false,
   defaultGeneration: DEFAULT_GENERATION
 }

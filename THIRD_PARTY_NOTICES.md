@@ -1,6 +1,6 @@
 # Third-party notices
 
-Voiceify is licensed under the [Apache License 2.0](LICENSE). It builds on the open-source projects below, whose licenses are all permissive and compatible with Apache-2.0.
+Voiceify is licensed under the [Apache License 2.0](LICENSE). It builds on the open-source projects below, whose licenses are all permissive and compatible with Apache-2.0 (Pocket TTS weights are CC-BY-4.0, which requires the attribution given here).
 
 ## AI models (downloaded at runtime, not distributed with Voiceify)
 
@@ -12,6 +12,10 @@ Models are fetched from Hugging Face on the user's request and stay under their 
 | [Qwen3-ASR](https://huggingface.co/collections/Qwen/qwen3-asr) (0.6B and 1.7B) | Alibaba Qwen team | Apache-2.0 |
 | [MLX conversions](https://huggingface.co/mlx-community) of the above | mlx-community | Apache-2.0 (inherited) |
 | [qwen3-tts-emotion-tags](https://huggingface.co/SpragAI/qwen3-tts-emotion-tags) (optional community fine-tune) | SpragAI | Apache-2.0 |
+| [Pocket TTS](https://huggingface.co/kyutai/pocket-tts) (100M), via [mlx-community conversions](https://huggingface.co/mlx-community/pocket-tts) | Kyutai | CC-BY-4.0 |
+| Pocket TTS tokenizer and built-in voice embeddings ([kyutai/pocket-tts-without-voice-cloning](https://huggingface.co/kyutai/pocket-tts-without-voice-cloning), [voice sources](https://huggingface.co/kyutai/tts-voices)) | Kyutai | CC-BY-4.0 (see voice repository for per-voice licenses) |
+
+Kyutai asks that Pocket TTS not be used for voice impersonation or cloning without explicit and lawful consent, misinformation, or fraud. Voiceify users are responsible for complying with these terms.
 
 ## Inference runtime (installed on first launch)
 
@@ -23,6 +27,8 @@ Models are fetched from Hugging Face on the user's request and stay under their 
 | [CPython](https://www.python.org/) | PSF License |
 | [NumPy](https://numpy.org/) | BSD-3-Clause |
 | [soundfile](https://github.com/bastibe/python-soundfile) | BSD-3-Clause |
+| [SentencePiece](https://github.com/google/sentencepiece) | Apache-2.0 |
+| [Requests](https://github.com/psf/requests) | Apache-2.0 |
 
 ## Application
 

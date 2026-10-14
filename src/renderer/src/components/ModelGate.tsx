@@ -4,6 +4,7 @@ import type { Capability } from '@shared/types'
 import { formatBytes } from '@shared/catalog'
 import { useApp } from '@/stores/app'
 import { recommendedFor } from '@/lib/models'
+import { PROVIDER_BY_ID } from '@shared/providers'
 import { studio } from '@/lib/api'
 import { Button, ProgressBar } from './ui'
 import { errorMessage, toast } from './Toast'
@@ -21,11 +22,16 @@ const GATE_COPY: Partial<Record<Capability, { title: string; body: string }>> = 
 }
 
 /** Inline call-to-action shown when the engine or a model for `cap` is missing. */
-export function ModelGate({ cap, compact }: { cap: Capability; compact?: boolean }) {
+export function ModelGate({ cap, compact, provider }: { cap: Capability; compact?: boolean; provider?: string }) {
   const models = useApp((s) => s.models)
   const engine = useApp((s) => s.engine)
   const navigate = useApp((s) => s.navigate)
-  const rec = recommendedFor(cap, models) ?? models.find((m) => m.capabilities.includes(cap))
+  const family = provider ? PROVIDER_BY_ID.get(provider) : undefined
+  const inFamily = (m: (typeof models)[number]) => !provider || m.provider === provider
+  const rec =
+    recommendedFor(cap, models, provider) ??
+    models.find((m) => inFamily(m) && m.capabilities.includes(cap) && m.quant === '8bit') ??
+    models.find((m) => inFamily(m) && m.capabilities.includes(cap))
 
   if (engine.state === 'missing' || engine.state === 'error') {
     return (
@@ -51,7 +57,7 @@ export function ModelGate({ cap, compact }: { cap: Capability; compact?: boolean
   return (
     <Callout
       compact={compact}
-      title={GATE_COPY[cap]?.title ?? 'This needs a model'}
+      title={family && family.id !== 'qwen3-tts' ? `Download ${family.name} to use it` : (GATE_COPY[cap]?.title ?? 'This needs a model')}
       body={
         s.status === 'downloading' ? (
           <div className="mt-2 space-y-1.5">
@@ -68,7 +74,7 @@ export function ModelGate({ cap, compact }: { cap: Capability; compact?: boolean
           <span className="text-danger">Download failed: {s.error}</span>
         ) : (
           <>
-            {GATE_COPY[cap]?.body} Recommended for this computer: <b className="font-medium text-ink">{rec.name}</b> ({formatBytes(rec.sizeBytes)}).
+            {family && family.id !== 'qwen3-tts' ? family.description : GATE_COPY[cap]?.body} Recommended for this computer: <b className="font-medium text-ink">{rec.name}</b> ({formatBytes(rec.sizeBytes)}).
           </>
         )
       }

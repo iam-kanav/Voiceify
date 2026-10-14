@@ -4,7 +4,7 @@ import type { EngineStatus } from '@shared/types'
 import { bus } from '../events'
 import { paths } from '../paths'
 import { getSettings } from '../settings'
-import { installRuntime, isRuntimeInstalled } from './runtime'
+import { installRuntime, isRuntimeInstalled, needsUpgrade } from './runtime'
 
 type EventHandler = (event: string, data: unknown) => void
 
@@ -53,6 +53,8 @@ class EngineClient {
   /** Called on app start: start the engine if the runtime exists. */
   async boot() {
     if (isRuntimeInstalled()) await this.start().catch(() => undefined)
+    // An app update needs new engine packages: upgrade in place instead of asking the user.
+    else if (needsUpgrade()) await this.install().catch(() => undefined)
     else this.setStatus({ state: 'missing' })
   }
 

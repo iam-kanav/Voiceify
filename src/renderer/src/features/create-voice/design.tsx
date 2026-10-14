@@ -13,11 +13,12 @@ import { Modal } from '@/components/Modal'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { errorMessage, toast } from '@/components/Toast'
 import { useApp } from '@/stores/app'
-import { useTts } from '@/stores/tts'
+import { selectVoiceById } from '@/stores/tts'
 import { usePlayer } from '@/stores/player'
 import { cn, formatTime, studio, uid } from '@/lib/api'
 import { isInstalled, recommendedFor } from '@/lib/models'
 import { InfoTip } from '@/components/InfoTip'
+import { PortabilityNote } from './PortabilityNote'
 import { usePlayerPadding } from '@/lib/useGenerate'
 
 const DEFAULT_PREVIEW =
@@ -103,7 +104,7 @@ export function DesignPanel() {
           designPrompt: description,
           stream: false,
           // Spread the previews out a little so each one sounds distinct.
-          settings: { language, temperature: Math.min(1.4, temperature + i * 0.08) }
+          settings: { language, params: { temperature: Math.min(1.4, temperature + i * 0.08) } }
         })
         setPreviews((p) => p.map((x) => (x.key === key ? { ...x, status: 'done', item } : x)))
         if (i === 0) playPreview({ ...batch[0], item, status: 'done' })
@@ -128,7 +129,7 @@ export function DesignPanel() {
     <>
       <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
         <section className="scroll w-[min(560px,48%)] shrink-0 space-y-6 border-r border-line p-8">
-          {!hasModel && <ModelGate cap="voice-design" />}
+          {!hasModel ? <ModelGate cap="voice-design" provider="qwen3-tts" /> : <PortabilityNote mode="design" />}
           <Field
             label="Voice description"
             right={
@@ -248,7 +249,7 @@ export function DesignPanel() {
         onSaved={(id) => {
           setSaving(null)
           toast.success('Voice saved to your library', (
-            <button className="underline" onClick={() => (useTts.getState().setVoice(id), navigate('tts'))}>
+            <button className="underline" onClick={() => (selectVoiceById(id), navigate('tts'))}>
               Use it in Text to Speech
             </button>
           ))

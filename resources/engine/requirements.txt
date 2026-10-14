@@ -1,3 +1,6 @@
 mlx-audio==0.5.9
 soundfile>=0.13
 numpy>=2.0
+# Pocket TTS
+sentencepiece>=0.2
+requests>=2.31

@@ -10,38 +10,45 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
 }
 
 export const isInstalled = (m: ModelInfo) => m.install.status === 'installed'
-const hasInstalled = (models: ModelInfo[], cap: Capability) => models.some((m) => isInstalled(m) && m.capabilities.includes(cap))
+const installedWith = (models: ModelInfo[], cap: Capability, provider?: string) =>
+  models.filter((m) => isInstalled(m) && m.capabilities.includes(cap) && (!provider || m.provider === provider))
 
 /**
- * Capability a voice needs. Saved designed voices replay through the cloning model so they keep
- * the exact timbre you picked; only if that's missing (but Voice Design is installed) do we
- * re-create them from their description.
+ * Capability a voice needs from the given model family. Saved designed voices replay through a
+ * cloning model so they keep the exact timbre you picked; only when the family has none (but can
+ * design) are they re-created from their description.
  */
-export function capabilityFor(voice: Voice | undefined, models: ModelInfo[]): Capability {
+export function capabilityFor(voice: Voice | undefined, models: ModelInfo[], provider?: string): Capability {
   if (!voice || voice.kind === 'preset') return 'preset-voices'
-  if (voice.kind === 'designed' && !hasInstalled(models, 'voice-clone') && hasInstalled(models, 'voice-design')) {
+  if (
+    voice.kind === 'designed' &&
+    !installedWith(models, 'voice-clone', provider).length &&
+    installedWith(models, 'voice-design', provider).length
+  ) {
     return 'voice-design'
   }
   return 'voice-clone'
 }
 
-/** Installed models that can speak this voice. Designed voices only fall back to Voice Design when cloning isn't available. */
-export function compatibleModels(voice: Voice | undefined, models: ModelInfo[]) {
-  const cap = capabilityFor(voice, models)
-  return models.filter((m) => isInstalled(m) && m.capabilities.includes(cap))
+/** Installed models in this family that can speak this voice. */
+export function compatibleModels(voice: Voice | undefined, models: ModelInfo[], provider?: string) {
+  return installedWith(models, capabilityFor(voice, models, provider), provider)
 }
 
 /** Mirror of the main-process resolver so the UI can show which model will run. */
-export function resolveModel(cap: Capability, models: ModelInfo[], preferred?: string, defaults?: Partial<Record<Capability, string>>) {
-  const c = models.filter((m) => isInstalled(m) && m.capabilities.includes(cap))
+export function resolveModel(cap: Capability, models: ModelInfo[], preferred?: string, defaults?: Record<string, string>, provider?: string) {
+  const c = installedWith(models, cap, provider)
   return (
     c.find((m) => m.id === preferred) ??
-    c.find((m) => m.id === defaults?.[cap]) ??
+    c.find((m) => m.id === defaults?.[`${provider ?? c[0]?.provider}/${cap}`]) ??
     c.find((m) => m.recommended) ??
     [...c].sort((a, b) => b.quality - a.quality || b.speed - a.speed)[0]
   )
 }
 
-export function recommendedFor(cap: Capability, models: ModelInfo[]) {
-  return models.find((m) => m.recommended && m.capabilities.includes(cap) && !m.community)
+export function recommendedFor(cap: Capability, models: ModelInfo[], provider?: string) {
+  return models.find((m) => m.recommended && m.capabilities.includes(cap) && !m.community && (!provider || m.provider === provider))
 }
+
+/** Is any model from this family installed? */
+export const familyInstalled = (models: ModelInfo[], provider: string) => models.some((m) => m.provider === provider && isInstalled(m))

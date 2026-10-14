@@ -26,8 +26,10 @@ export function ModelChooser({
   options,
   active,
   value,
-  onChange
+  onChange,
+  provider
 }: {
+  provider?: string
   voice: Voice | undefined
   cap: Capability
   options: ModelInfo[]
@@ -40,16 +42,18 @@ export function ModelChooser({
   const [open, setOpen] = useState(false)
   const btn = useRef<HTMLButtonElement>(null)
   const multiRole = new Set(options.map((o) => o.roleId)).size > 1
-  const label = (m: ModelInfo) => `${multiRole ? `${m.role} · ` : ''}${m.sizeLabel} · ${m.precisionLabel}`
+  const sized = (m: ModelInfo) => m.sizeLabel === 'Large' || m.sizeLabel === 'Small'
+  const label = (m: ModelInfo) =>
+    `${multiRole ? `${m.role} · ` : ''}${sized(m) ? `${m.sizeLabel} · ` : ''}${m.precisionLabel}`
 
   const help = (
     <>
       <p>
         {voice?.kind === 'preset'
-          ? 'Built-in voices are spoken by the Built-in Voices model (open-source Qwen3-TTS CustomVoice).'
-          : voice?.kind === 'designed'
-            ? 'Saved designed voices are spoken by the Voice Cloning model, which copies the preview you saved. Without it, the Voice Design model re-creates the voice from its description.'
-            : 'Cloned voices are spoken by the Voice Cloning model (open-source Qwen3-TTS Base), which copies the voice from your sample.'}
+          ? 'Which installed version of this model speaks built-in voices.'
+          : voice?.kind === 'designed' && cap === 'voice-design'
+            ? 'No cloning model is installed for this family, so this voice is re-created from its description each time (it may sound a little different).'
+            : 'Your own voices are spoken by a cloning model, which copies the voice from its reference recording.'}
       </p>
       <p className="mt-1.5 opacity-80">{SIZE_HELP}</p>
       <p className="mt-1.5 opacity-80">{PRECISION_HELP}</p>
@@ -58,7 +62,7 @@ export function ModelChooser({
 
   const header = (
     <div className="flex items-center gap-1.5 text-[13px] font-medium">
-      Model
+      Version
       <InfoTip width={320}>{help}</InfoTip>
     </div>
   )
@@ -67,33 +71,29 @@ export function ModelChooser({
     return (
       <div className="space-y-2">
         {header}
-        <ModelGate cap={cap} compact />
+        <ModelGate cap={cap} provider={provider} compact />
       </div>
     )
   }
 
   const speed = speedText(active)
 
-  // Only one compatible model installed: show it, don't offer a pointless choice.
+  // Only one compatible version installed: say what's running, don't offer a pointless choice.
   if (options.length === 1) {
     const m = options[0]
     return (
-      <div className="space-y-2">
-        {header}
-        <div className="rounded-2xl border border-line-strong p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium">
-              {m.role} · {m.sizeLabel} · {m.precisionLabel}
-            </span>
-            <button onClick={() => navigate('models')} className="text-xs text-ink-3 hover:text-ink">
-              More options
-            </button>
+      <div className="flex items-start justify-between gap-3 rounded-xl bg-subtle px-3 py-2.5">
+        <div className="min-w-0 text-xs">
+          <div className="flex items-center gap-1.5 text-ink-2">
+            Running <b className="font-medium text-ink">{m.name}</b>
+            <InfoTip width={320}>{help}</InfoTip>
           </div>
-          <div className="mt-0.5 text-xs text-ink-3">
-            {m.officialName}
-            {speed ? ` · ${speed}` : ''}
-          </div>
+          <div className="mt-0.5 text-ink-3">{m.officialName}</div>
+          {speed && <div className="text-ink-3">{speed}</div>}
         </div>
+        <button onClick={() => navigate('models')} className="shrink-0 text-xs text-ink-3 hover:text-ink">
+          Other versions
+        </button>
       </div>
     )
   }
@@ -139,7 +139,7 @@ export function ModelChooser({
               <span className="flex items-center gap-1.5">
                 {label(m)}
                 {m.recommended && <Badge tone="green">Recommended</Badge>}
-                {defaults?.[cap] === m.id && <span title="Your default">★</span>}
+                {defaults?.[`${m.provider}/${cap}`] === m.id && <span title="Your default">★</span>}
               </span>
             }
             subtitle={`${m.summary}${multiRole ? ` · ${ROLES[m.roleId]?.blurb ?? ''}` : ''}`}

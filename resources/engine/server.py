@@ -108,6 +108,8 @@ class ModelCache:
         else:
             from mlx_audio.tts.utils import load_model as load_tts
 
+            if model_type(path) == "pocket_tts":
+                use_local_pocket_files(path)
             model = load_tts(path)
         log(f"Loaded in {time.time() - t0:.1f}s")
         self.models[key] = model
@@ -134,6 +136,46 @@ class ModelCache:
 
 
 CACHE = ModelCache()
+
+
+def model_type(path: str) -> str:
+    try:
+        with open(os.path.join(path, "config.json"), encoding="utf-8") as f:
+            return str(json.load(f).get("model_type", ""))
+    except Exception:
+        return ""
+
+
+_pocket_dir: list = [None]
+_pocket_hooked = [False]
+
+
+def use_local_pocket_files(path: str) -> None:
+    """Pocket TTS fetches its tokenizer and voice embeddings from Hugging Face on demand.
+    Voiceify downloads them next to the model, so resolve those hf:// paths to local files and
+    keep everything offline."""
+    from pathlib import Path
+
+    _pocket_dir[0] = Path(path)
+    if _pocket_hooked[0]:
+        return
+    import mlx_audio.tts.models.pocket_tts.conditioners as conditioners
+    import mlx_audio.tts.models.pocket_tts.pocket_tts as pocket
+    import mlx_audio.tts.models.pocket_tts.utils as utils
+
+    original = utils.download_if_necessary
+
+    def resolve(remote):
+        base = _pocket_dir[0]
+        if base is not None and isinstance(remote, str) and remote.startswith("hf://"):
+            name = remote.split("@", 1)[0].rsplit("/", 1)[-1]
+            for candidate in (base / name, base / "embeddings" / name):
+                if candidate.exists():
+                    return candidate
+        return original(remote)
+
+    utils.download_if_necessary = conditioners.download_if_necessary = pocket.download_if_necessary = resolve
+    _pocket_hooked[0] = True
 
 
 # --------------------------------------------------------------------------------------------
@@ -210,25 +252,38 @@ def handle_tts_generate(job: Job) -> Dict[str, Any]:
     sr = int(model.sample_rate)
     stream = bool(p.get("stream", True))
 
+    # Everything except these is a model setting the main process mapped from the provider's
+    # parameter list (temperature, top_p, lsd_decode_steps, …), so pass it straight through.
+    reserved = {"model_path", "text", "out_path", "stream", "provider", "language", "voice", "instruct",
+                "ref_audio", "ref_text", "streaming_interval"}
+    settings = {k: v for k, v in p.items() if k not in reserved and v is not None}
+    pocket = p.get("provider") == "pocket-tts" or model_type(p["model_path"]) == "pocket_tts"
+
     kwargs: Dict[str, Any] = dict(
-        text=segment_text(p["text"]),
-        temperature=float(p.get("temperature", 0.9)),
-        top_p=float(p.get("top_p", 1.0)),
-        top_k=int(p.get("top_k", 50)),
-        repetition_penalty=float(p.get("repetition_penalty", 1.05)),
-        lang_code=(p.get("language") or "auto").lower(),
-        max_tokens=int(p.get("max_tokens", 4096)),
-        split_pattern="\n",
         stream=True,
         streaming_interval=float(p.get("streaming_interval", 0.48)),
+        **settings,
     )
-    if p.get("voice"):
-        kwargs["voice"] = p["voice"]
-    if p.get("instruct"):
-        kwargs["instruct"] = p["instruct"]
+    if pocket:
+        # Pocket TTS handles long text itself and speaks one language.
+        _pocket_dir[0] = __import__("pathlib").Path(p["model_path"])
+        kwargs["text"] = " ".join(p["text"].split())
+        if p.get("voice"):
+            kwargs["voice"] = str(p["voice"]).lower()
+    else:
+        kwargs.update(
+            text=segment_text(p["text"]),
+            lang_code=(p.get("language") or "auto").lower(),
+            max_tokens=int(p.get("max_tokens", 4096)),
+            split_pattern="\n",
+        )
+        if p.get("voice"):
+            kwargs["voice"] = p["voice"]
+        if p.get("instruct"):
+            kwargs["instruct"] = p["instruct"]
     if p.get("ref_audio"):
         kwargs["ref_audio"] = p["ref_audio"]
-        if p.get("ref_text"):
+        if p.get("ref_text") and not pocket:
             kwargs["ref_text"] = p["ref_text"]
 
     try:

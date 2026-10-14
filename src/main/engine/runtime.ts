@@ -53,6 +53,11 @@ export function isRuntimeInstalled() {
   }
 }
 
+/** A Python environment exists but its packages are out of date (e.g. a model family was added). */
+export function needsUpgrade() {
+  return existsSync(paths.python) && existsSync(manifestPath()) && !isRuntimeInstalled()
+}
+
 export function findUv(): string | null {
   const candidates = [
     join(paths.bin, process.platform === 'win32' ? 'uv.exe' : 'uv'),
@@ -117,11 +122,16 @@ export async function installRuntime(progress: InstallProgress) {
     UV_NO_PROGRESS: '1'
   }
 
-  progress('Creating Python 3.12 environment', 0.12)
-  rmSync(paths.venv, { recursive: true, force: true })
-  await run(uv, ['venv', '--python', '3.12', '--seed', paths.venv], log, uvEnv)
+  // Upgrades keep the existing environment and only add or update packages.
+  const upgrading = existsSync(paths.python) && existsSync(manifestPath())
+  if (!upgrading) {
+    progress('Creating Python 3.12 environment', 0.12)
+    rmSync(paths.venv, { recursive: true, force: true })
+    await run(uv, ['venv', '--python', '3.12', '--seed', paths.venv], log, uvEnv)
+  }
 
-  progress('Installing MLX and mlx-audio (≈350 MB)', 0.3)
+  const step = upgrading ? 'Updating the voice engine' : 'Installing MLX and mlx-audio (≈350 MB)'
+  progress(step, 0.3)
   let lines = 0
   await run(
     uv,
@@ -129,13 +139,13 @@ export async function installRuntime(progress: InstallProgress) {
     (line) => {
       lines++
       log(line)
-      progress('Installing MLX and mlx-audio (≈350 MB)', Math.min(0.9, 0.3 + lines * 0.006))
+      progress(step, Math.min(0.9, 0.3 + lines * 0.006))
     },
     uvEnv
   )
 
   progress('Verifying installation', 0.95)
-  await run(paths.python, ['-c', 'import mlx.core, mlx_audio, soundfile; print("mlx ok")'], log)
+  await run(paths.python, ['-c', 'import mlx.core, mlx_audio, soundfile, sentencepiece; print("mlx ok")'], log)
 
   writeFileSync(manifestPath(), JSON.stringify({ requirements: requirementsHash(), installedAt: Date.now() }, null, 2))
   progress('Ready', 1)

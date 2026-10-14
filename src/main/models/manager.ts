@@ -4,7 +4,7 @@ import { once } from 'node:events'
 import { join, dirname } from 'node:path'
 import { CATALOG, CATALOG_BY_ID, PRECISION_INFO, recommendationsFor, ROLES } from '@shared/catalog'
 import { history } from '../library/history'
-import type { Capability, InstallState, ModelInfo, ModelVariant } from '@shared/types'
+import type { Capability, ExtraFile, InstallState, ModelInfo, ModelVariant } from '@shared/types'
 import { bus } from '../events'
 import { paths } from '../paths'
 import { JsonStore } from '../store'
@@ -88,7 +88,7 @@ class ModelManager {
   private localSpeeds() {
     const by = new Map<string, number[]>()
     for (const h of history.list(true).slice(0, 400)) {
-      if (h.durationSec < 2 || !h.processingSec) continue
+      if (h.durationSec < 2 || !h.processingSec || h.coldStart) continue
       by.set(h.modelId, [...(by.get(h.modelId) ?? []), h.durationSec / h.processingSec])
     }
     const out = new Map<string, { speedup: number; samples: number }>()
@@ -115,21 +115,30 @@ class ModelManager {
     })
   }
 
-  installedWith(cap: Capability): ModelVariant[] {
-    return this.variants().filter((m) => m.capabilities.includes(cap) && this.installedPath(m.id))
+  installedWith(cap: Capability, provider?: string): ModelVariant[] {
+    return this.variants().filter(
+      (m) => m.capabilities.includes(cap) && (!provider || m.provider === provider) && this.installedPath(m.id)
+    )
+  }
+
+  /** Model families with at least one installed model that can do `cap`. */
+  installedProviders(cap: Capability): string[] {
+    return [...new Set(this.installedWith(cap).map((m) => m.provider))]
   }
 
   /**
    * Pick the model to run for a capability: explicit choice → user default → recommended → best quality.
    */
-  resolve(cap: Capability, preferredId?: string): ModelVariant | null {
-    const candidates = this.installedWith(cap)
+  resolve(cap: Capability, preferredId?: string, provider?: string): ModelVariant | null {
+    const candidates = this.installedWith(cap, provider)
     if (!candidates.length) return null
     const byId = (id?: string) => (id ? candidates.find((c) => c.id === id) : undefined)
     const rec = recommendationsFor(getSystemInfo())
+    const defaults = getSettings().defaultModels
     return (
       byId(preferredId) ??
-      byId(getSettings().defaultModels[cap]) ??
+      byId(provider ? defaults[`${provider}/${cap}`] : undefined) ??
+      byId(defaults[`${candidates[0].provider}/${cap}`]) ??
       candidates.find((c) => rec.has(c.id)) ??
       [...candidates].sort((a, b) => b.quality - a.quality || b.speed - a.speed)[0]
     )
@@ -162,7 +171,7 @@ class ModelManager {
     const downloadDir = model.source.type === 'hf-convert' ? join(paths.tmp, `convert-${id}`) : `${finalDir}.partial`
 
     try {
-      await this.downloadRepo(id, model.source.repo, downloadDir, ctrl.signal)
+      await this.downloadRepo(id, model.source.repo, downloadDir, ctrl.signal, model.source.extras)
       if (model.source.type === 'hf-convert') {
         this.setTransient(id, { status: 'converting', message: 'Converting to MLX (this can take a few minutes)…' })
         rmSync(finalDir, { recursive: true, force: true })
@@ -283,8 +292,16 @@ class ModelManager {
       .map((e) => ({ path: e.path, size: e.size ?? 0 }))
   }
 
-  private async downloadRepo(id: string, repo: string, dir: string, signal: AbortSignal) {
-    const files = await this.listFiles(repo)
+  private async downloadRepo(id: string, repo: string, dir: string, signal: AbortSignal, extras: ExtraFile[] = []) {
+    const fileUrl = (r: string, path: string, rev = 'main') => `${HF}/${r}/resolve/${rev}/${path.split('/').map(encodeURIComponent).join('/')}`
+    const listed = await this.listFiles(repo)
+    const files = [
+      ...listed.map((f) => ({ ...f, url: fileUrl(repo, f.path) })),
+      // Extras (tokenizers, voice embeddings) the model would otherwise fetch at runtime.
+      ...extras
+        .filter((e) => !listed.some((f) => f.path === (e.saveAs ?? e.path)))
+        .map((e) => ({ path: e.saveAs ?? e.path, size: e.size, url: fileUrl(e.repo, e.path, e.revision) }))
+    ]
     const total = files.reduce((n, f) => n + f.size, 0)
     let received = 0
     let lastEmit = 0
@@ -316,7 +333,7 @@ class ModelManager {
       if (signal.aborted) throw new Error('aborted')
       const dest = join(dir, f.path)
       mkdirSync(dirname(dest), { recursive: true })
-      const url = `${HF}/${repo}/resolve/main/${f.path.split('/').map(encodeURIComponent).join('/')}`
+      const url = f.url
       const cb = (n: number, resumed?: boolean) => onBytes(n, f.path, resumed)
       if (f.size >= CHUNKED_MIN) await downloadChunked(url, dest, f.size, signal, cb)
       else await downloadSingle(url, dest, f.size, signal, cb)

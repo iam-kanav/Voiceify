@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Capability, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Voice } from '@shared/types'
+import type { Capability, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Provider, Voice } from '@shared/types'
+import { DEFAULT_PROVIDER, paramsFor, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
 import { DEFAULT_GENERATION } from '@shared/voices'
 import { engine } from '../engine/client'
 import { bus } from '../events'
@@ -38,80 +39,141 @@ export class StudioError extends Error {
 interface Plan {
   mode: GenerationMode
   model: ModelVariant
+  provider: Provider
   voice?: Voice
   voiceName: string
+  /** Model-specific settings actually used (for history). */
+  values: Record<string, number>
+  /** Arguments for the engine's tts.generate. */
   params: Record<string, unknown>
 }
 
-function requireModel(cap: Capability, preferredId?: string): ModelVariant {
+function requireModel(cap: Capability, preferredId?: string, provider?: Provider): ModelVariant {
   if (preferredId) {
     const m = models.get(preferredId)
     if (m && models.installedPath(m.id) && !m.capabilities.includes(cap)) {
       throw new StudioError(`${m.name} can't ${CAP_NEEDS[cap].task}. Pick a ${CAP_NEEDS[cap].model} model instead.`)
     }
   }
-  const model = models.resolve(cap, preferredId)
+  const model = models.resolve(cap, preferredId, provider?.id)
   if (!model) {
-    throw new StudioError(`To ${CAP_NEEDS[cap].task}, download a ${CAP_NEEDS[cap].model} model on the Models page.`, 'no-model')
+    const what = provider && provider.id !== 'qwen3-tts' ? provider.name : `a ${CAP_NEEDS[cap].model}`
+    throw new StudioError(`To ${CAP_NEEDS[cap].task}${provider ? ` with ${provider.name}` : ''}, download ${what} model on the Models page.`, 'no-model')
   }
   return model
 }
 
-function defaultVoice(): Voice {
-  // Prefer a preset when a CustomVoice model exists, otherwise the newest personal voice.
-  if (models.installedWith('preset-voices').length) return voices.find('preset:ryan')!
+/** `model` may name a provider ("pocket-tts") or a specific variant ("pocket-tts-8bit"). */
+function parseModelRef(ref?: string): { provider?: string; modelId?: string } {
+  if (!ref) return {}
+  if (PROVIDER_BY_ID.has(ref)) return { provider: ref }
+  const m = models.get(ref)
+  return m ? { provider: m.provider, modelId: m.id } : { modelId: ref }
+}
+
+/** Which model family speaks this voice. */
+function pickProvider(voice: Voice | undefined, requested?: string): Provider {
+  if (voice?.kind === 'preset') {
+    const own = voice.provider ?? DEFAULT_PROVIDER
+    if (requested && requested !== own) {
+      const ownName = PROVIDER_BY_ID.get(own)?.name ?? own
+      const reqName = PROVIDER_BY_ID.get(requested)?.name ?? requested
+      throw new StudioError(`“${voice.name}” is a built-in ${ownName} voice, so ${reqName} can’t speak it. Pick one of ${reqName}’s voices, or one of your own.`)
+    }
+    return PROVIDER_BY_ID.get(own)!
+  }
+  if (requested) {
+    const p = PROVIDER_BY_ID.get(requested)
+    if (!p) throw new StudioError(`Unknown model “${requested}”.`)
+    if (voice && !providersForVoice(voice).some((x) => x.id === p.id)) {
+      throw new StudioError(`${p.name} can’t use your own voices.`)
+    }
+    return p
+  }
+  // Your own voices: the default family if it can clone and is installed, else any that can.
+  const preferred = [getSettings().defaultProvider, ...TTS_PROVIDERS.map((p) => p.id)]
+  const cloners = models.installedProviders('voice-clone')
+  const pick = preferred.find((id) => cloners.includes(id))
+  if (pick) return PROVIDER_BY_ID.get(pick)!
+  if (voice?.kind === 'designed' && models.installedWith('voice-design').length) return PROVIDER_BY_ID.get('qwen3-tts')!
+  return PROVIDER_BY_ID.get(getSettings().defaultProvider) ?? PROVIDER_BY_ID.get(DEFAULT_PROVIDER)!
+}
+
+function defaultVoice(provider?: string): Voice {
+  const fam = provider ?? getSettings().defaultProvider
+  const presetOf = (id: string) => PROVIDER_BY_ID.get(id)?.voices[0]
+  if (models.installedWith('preset-voices', fam).length && presetOf(fam)) return presetOf(fam)!
   const own = voices.list().find((v) => v.kind !== 'preset')
-  return own ?? voices.find('preset:ryan')!
+  if (own) return own
+  const anyFam = models.installedProviders('preset-voices')[0]
+  return (anyFam && presetOf(anyFam)) || voices.find('preset:ryan')!
+}
+
+/** Turn the provider's settings into the engine's keyword arguments. */
+function engineArgs(provider: Provider, settings: GenerationSettings & { temperature?: number }) {
+  const legacy: Record<string, number> = settings.temperature !== undefined ? { temperature: settings.temperature } : {}
+  const values = paramsFor(provider.id, { ...legacy, ...settings.params })
+  const args: Record<string, unknown> = {}
+  for (const spec of provider.params) args[spec.engineKey] = spec.integer ? Math.round(values[spec.key]) : values[spec.key]
+  // Only multilingual models get a language; others always speak their one language.
+  if (provider.languages.length > 1) args.language = settings.language
+  return { values, args }
 }
 
 function plan(req: GenerateRequest, settings: GenerationSettings): Plan {
-  const base = {
-    temperature: settings.temperature,
-    top_p: settings.topP,
-    top_k: settings.topK,
-    repetition_penalty: settings.repetitionPenalty,
-    language: settings.language
-  }
+  const ref = parseModelRef(req.modelId)
+  const requested = req.provider ?? ref.provider
 
   if (req.designPrompt && !req.voiceId) {
-    const model = requireModel('voice-design', req.modelId)
-    return { mode: 'design', model, voiceName: 'Voice Design', params: { ...base, instruct: req.designPrompt } }
+    const provider = PROVIDER_BY_ID.get('qwen3-tts')!
+    const model = requireModel('voice-design', ref.modelId, provider)
+    const { values, args } = engineArgs(provider, settings)
+    return { mode: 'design', model, provider, voiceName: 'Voice Design', values, params: { ...args, instruct: req.designPrompt } }
   }
 
-  const voice = req.voiceId ? voices.find(req.voiceId) : defaultVoice()
+  const voice = req.voiceId ? voices.find(req.voiceId) : defaultVoice(requested)
   if (!voice) throw new StudioError(`The voice "${req.voiceId}" no longer exists. Pick another voice.`)
+  const provider = pickProvider(voice, requested)
+  const { values, args } = engineArgs(provider, settings)
 
   if (voice.kind === 'preset') {
-    const model = requireModel('preset-voices', req.modelId)
-    const instruct = model.capabilities.includes('instruct') ? settings.instruct?.trim() : undefined
+    const model = requireModel('preset-voices', ref.modelId, provider)
+    const instruct =
+      provider.features.styleInstructions && model.capabilities.includes('instruct') ? settings.instruct?.trim() : undefined
     return {
       mode: 'preset',
       model,
+      provider,
       voice,
       voiceName: voice.name,
-      params: { ...base, voice: voice.speaker, instruct: instruct || undefined }
+      values,
+      params: { ...args, voice: voice.speaker, instruct: instruct || undefined }
     }
   }
 
-  // Designed voices replay through the Base model (consistent timbre) when available,
-  // otherwise fall back to re-describing them to VoiceDesign.
+  // Saved designed voices replay through a cloning model (consistent timbre). Only Qwen3-TTS can
+  // fall back to re-creating them from their description when it has no cloning model.
+  const canClone = models.installedWith('voice-clone', provider.id).length > 0
   const wantsDesign =
     voice.kind === 'designed' &&
-    voice.designPrompt &&
-    (models.get(req.modelId ?? '')?.capabilities.includes('voice-design') || !models.installedWith('voice-clone').length)
+    !!voice.designPrompt &&
+    provider.features.voiceDesign &&
+    (models.get(ref.modelId ?? '')?.capabilities.includes('voice-design') || !canClone)
   if (wantsDesign) {
-    const model = requireModel('voice-design', req.modelId)
-    return { mode: 'design', model, voice, voiceName: voice.name, params: { ...base, instruct: voice.designPrompt } }
+    const model = requireModel('voice-design', ref.modelId, provider)
+    return { mode: 'design', model, provider, voice, voiceName: voice.name, values, params: { ...args, instruct: voice.designPrompt } }
   }
 
-  const model = requireModel('voice-clone', req.modelId)
+  const model = requireModel('voice-clone', ref.modelId, provider)
   if (!voice.refAudio) throw new StudioError(`“${voice.name}” is missing its reference audio. Clone it again from Create Voice.`)
   return {
     mode: 'clone',
     model,
+    provider,
     voice,
     voiceName: voice.name,
-    params: { ...base, ref_audio: voice.refAudio, ref_text: voice.refText || undefined }
+    values,
+    params: { ...args, ref_audio: voice.refAudio, ref_text: voice.refText || undefined }
   }
 }
 
@@ -125,9 +187,14 @@ export async function generate(req: GenerateRequest, opts: GenerateOptions = {})
   const text = (req.text ?? '').trim()
   if (!text) throw new StudioError('Text is empty.')
 
-  const settings: GenerationSettings = { ...DEFAULT_GENERATION, ...getSettings().defaultGeneration, ...req.settings }
+  const settings: GenerationSettings & { temperature?: number } = {
+    ...DEFAULT_GENERATION,
+    ...req.settings,
+    params: { ...(req.settings?.params ?? {}) }
+  }
   const p = plan(req, settings)
   const modelPath = models.installedPath(p.model.id)!
+  const coldStart = !engine.isLoaded(modelPath)
   const id = `gen_${Date.now().toString(36)}_${randomUUID().slice(0, 6)}`
   const outPath = history.audioPathFor(id)
   const jobId = opts.jobId ?? id
@@ -140,7 +207,7 @@ export async function generate(req: GenerateRequest, opts: GenerateOptions = {})
     rtf: number
   }>(
     'tts.generate',
-    { ...p.params, model_path: modelPath, text, out_path: outPath, stream: req.stream !== false },
+    { ...p.params, provider: p.provider.id, model_path: modelPath, text, out_path: outPath, stream: req.stream !== false },
     {
       id: jobId,
       onEvent: (event, data) => {
@@ -159,14 +226,16 @@ export async function generate(req: GenerateRequest, opts: GenerateOptions = {})
     text,
     voiceId: p.voice?.id,
     voiceName: p.voiceName,
+    provider: p.provider.id,
     modelId: p.model.id,
     mode: p.mode,
-    settings: { ...settings, instruct: (p.params.instruct as string) ?? '' },
+    settings: { language: settings.language, instruct: (p.params.instruct as string) ?? '', params: p.values },
     audioPath: outPath,
     durationSec: result.duration,
     sampleRate: result.sample_rate,
     processingSec: result.processing_time,
     rtf: result.rtf,
+    coldStart,
     createdAt: Date.now(),
     source: req.source ?? 'app',
     ephemeral: opts.ephemeral ?? (p.mode === 'design' && !req.voiceId)
@@ -258,15 +327,23 @@ export function playInApp(historyId: string) {
 
 export function status() {
   const installed = models.list().filter((m) => m.install.status === 'installed')
+  const has = (provider: string, cap: Capability) => installed.some((m) => m.provider === provider && m.capabilities.includes(cap))
   return {
     engine: engine.status,
-    installedModels: installed.map((m) => ({ id: m.id, name: m.name, capabilities: m.capabilities, loaded: m.loaded })),
-    capabilities: {
-      presetVoices: installed.some((m) => m.capabilities.includes('preset-voices')),
-      styleInstructions: installed.some((m) => m.capabilities.includes('instruct') && m.capabilities.includes('preset-voices')),
-      voiceDesign: installed.some((m) => m.capabilities.includes('voice-design')),
-      voiceClone: installed.some((m) => m.capabilities.includes('voice-clone')),
-      transcription: installed.some((m) => m.capabilities.includes('transcribe'))
-    }
+    installedModels: installed.map((m) => ({ id: m.id, provider: m.provider, name: m.name, capabilities: m.capabilities, loaded: m.loaded })),
+    providers: TTS_PROVIDERS.map((p) => ({
+      id: p.id,
+      name: p.name,
+      tagline: p.tagline,
+      languages: p.languages,
+      installed: installed.some((m) => m.provider === p.id),
+      can: {
+        builtInVoices: has(p.id, 'preset-voices'),
+        styleInstructions: p.features.styleInstructions && installed.some((m) => m.provider === p.id && m.capabilities.includes('instruct') && m.capabilities.includes('preset-voices')),
+        voiceCloning: has(p.id, 'voice-clone'),
+        voiceDesign: has(p.id, 'voice-design')
+      }
+    })),
+    transcription: installed.some((m) => m.capabilities.includes('transcribe'))
   }
 }

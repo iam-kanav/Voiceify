@@ -1,5 +1,6 @@
 import type { AppSettings } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/voices'
+import { CATALOG_BY_ID } from '@shared/catalog'
 import { JsonStore } from './store'
 
 let store: JsonStore<AppSettings> | null = null
@@ -11,7 +12,17 @@ export function settingsStore() {
 
 export function getSettings(): AppSettings {
   const s = settingsStore().get()
-  return { ...DEFAULT_SETTINGS, ...s, defaultGeneration: { ...DEFAULT_SETTINGS.defaultGeneration, ...s.defaultGeneration } }
+  // Older versions keyed defaults by capability only ("preset-voices"); key them by provider now.
+  const defaultModels: Record<string, string> = {}
+  for (const [k, v] of Object.entries(s.defaultModels ?? {})) {
+    defaultModels[k.includes('/') ? k : `${CATALOG_BY_ID.get(v)?.provider ?? 'qwen3-tts'}/${k}`] = v
+  }
+  return {
+    ...DEFAULT_SETTINGS,
+    ...s,
+    defaultModels,
+    defaultGeneration: { ...DEFAULT_SETTINGS.defaultGeneration, ...s.defaultGeneration }
+  }
 }
 
 export function updateSettings(patch: Partial<AppSettings>): AppSettings {

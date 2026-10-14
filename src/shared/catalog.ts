@@ -1,24 +1,6 @@
-import type { Capability, ModelVariant, Provider, Quant, SystemInfo } from './types'
+import type { Capability, ExtraFile, ModelVariant, Quant, SystemInfo } from './types'
 
-/** Model providers. Add an entry here (plus catalog variants and an engine handler) to support a new family. */
-export const PROVIDERS: Provider[] = [
-  {
-    id: 'qwen3-tts',
-    name: 'Qwen3-TTS',
-    vendor: 'Alibaba Qwen',
-    license: 'Apache-2.0',
-    url: 'https://huggingface.co/collections/Qwen/qwen3-tts',
-    description: 'Multilingual TTS with preset voices, voice design and 3-second cloning. 10 languages.'
-  },
-  {
-    id: 'qwen3-asr',
-    name: 'Qwen3-ASR',
-    vendor: 'Alibaba Qwen',
-    license: 'Apache-2.0',
-    url: 'https://huggingface.co/collections/Qwen/qwen3-asr',
-    description: 'Speech recognition, used to transcribe voice-clone references.'
-  }
-]
+export { PROVIDERS } from './providers'
 
 /**
  * The model catalog. Every downloadable model lives here; the UI, recommendation engine, MCP
@@ -70,6 +52,11 @@ export const ROLES: Record<string, { label: string; blurb: string; why: string }
     label: 'Transcription',
     blurb: 'Writes down what is said in an audio clip.',
     why: 'Optional helper: fills in the transcript when you clone a voice, which makes clones noticeably more accurate.'
+  },
+  'voices-and-cloning': {
+    label: 'Voices & Cloning',
+    blurb: 'One small model speaks the built-in voices and clones yours.',
+    why: 'Everything Pocket TTS does comes in a single download. Pick a precision; 8-bit is the sweet spot.'
   },
   community: {
     label: 'Community Fine-tunes',
@@ -184,6 +171,63 @@ const official: ModelVariant[] = FAMILIES.flatMap((f) =>
   })
 )
 
+// Pocket TTS fetches its tokenizer and built-in voice embeddings from Hugging Face at load time;
+// we download them alongside the model so it runs offline.
+const POCKET_TOKENIZER: ExtraFile = {
+  repo: 'kyutai/pocket-tts-without-voice-cloning',
+  path: 'tokenizer.model',
+  revision: 'd4fdd22ae8c8e1cb3634e150ebeff1dab2d16df3',
+  size: 59339
+}
+const POCKET_EMBEDDINGS: ExtraFile[] = (
+  [
+    ['alba', 512088],
+    ['azelma', 659544],
+    ['cosette', 512088],
+    ['eponine', 573528],
+    ['fantine', 540760],
+    ['javert', 512088],
+    ['jean', 512088],
+    ['marius', 512088]
+  ] as const
+).map(([name, size]) => ({ repo: 'mlx-community/pocket-tts', path: `embeddings/${name}.safetensors`, size }))
+
+const POCKET: [Quant, string, number, number, string][] = [
+  ['bf16', 'mlx-community/pocket-tts', 240322540, 3.8, 'Uncompressed · still tiny'],
+  ['8bit', 'mlx-community/pocket-tts-8bit', 140263565, 3.7, 'Best balance · near-identical quality'],
+  ['6bit', 'mlx-community/pocket-tts-6bit', 114789791, 3.4, 'Smaller · slight quality loss'],
+  ['4bit', 'mlx-community/pocket-tts-4bit', 89316161, 3, 'Smallest · flatter delivery']
+]
+
+const pocket: ModelVariant[] = POCKET.map(([q, repo, size, quality, summary]) => {
+  const extras = q === 'bf16' ? [POCKET_TOKENIZER] : [POCKET_TOKENIZER, ...POCKET_EMBEDDINGS]
+  const total = size + (q === 'bf16' ? 0 : POCKET_EMBEDDINGS.reduce((n, e) => n + e.size, 0)) + POCKET_TOKENIZER.size
+  return {
+    id: `pocket-tts-${q}`,
+    provider: 'pocket-tts',
+    name: `Pocket TTS · ${PRECISION_INFO[q].label}`,
+    family: 'Pocket TTS',
+    familyId: 'pocket-tts',
+    role: ROLES['voices-and-cloning'].label,
+    roleId: 'voices-and-cloning',
+    sizeLabel: '100M',
+    precisionLabel: PRECISION_INFO[q].label,
+    summary,
+    officialName: 'Kyutai Pocket TTS (100M)',
+    task: 'tts',
+    capabilities: ['preset-voices', 'voice-clone'],
+    params: '0.1B',
+    quant: q,
+    source: { type: 'hf-mlx', repo, extras },
+    sizeBytes: total,
+    quality,
+    speed: 5,
+    minRamGB: 2,
+    description: 'Built-in voices and voice cloning in one small model. English.',
+    tags: ['100M']
+  }
+})
+
 const helpers: ModelVariant[] = [
   {
     id: 'qwen3-asr-0.6b-8bit',
@@ -264,7 +308,7 @@ const community: ModelVariant[] = [
   }
 ]
 
-export const CATALOG: ModelVariant[] = [...official, ...helpers, ...community]
+export const CATALOG: ModelVariant[] = [...official, ...pocket, ...helpers, ...community]
 
 export const CATALOG_BY_ID = new Map(CATALOG.map((m) => [m.id, m]))
 
@@ -300,6 +344,7 @@ export function recommendationsFor(sys: SystemInfo): Map<string, string> {
     pick('qwen3-tts-1.7b-voicedesign', 'bf16', why)
   }
   rec.set('qwen3-asr-0.6b-8bit', 'Small and fast; fills in clone transcripts')
+  rec.set('pocket-tts-8bit', mem <= 8 ? `Fast and tiny — ideal for ${mem} GB of memory` : 'Tiny (140 MB) and very fast — great for drafts and long reads')
   return rec
 }
 

@@ -8,12 +8,13 @@ import { ModelGate } from '@/components/ModelGate'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { errorMessage, toast } from '@/components/Toast'
 import { useApp } from '@/stores/app'
-import { useTts } from '@/stores/tts'
+import { selectVoiceById } from '@/stores/tts'
 import { usePlayer } from '@/stores/player'
 import { cn, formatTime, studio, uid } from '@/lib/api'
 import { decodeToMono, encodeWav, normalize, peaks as computePeaks, TARGET_SR, trimSilence } from '@/lib/wav'
 import { isInstalled } from '@/lib/models'
 import { usePlayerPadding } from '@/lib/useGenerate'
+import { PortabilityNote } from './PortabilityNote'
 import { useRaf } from '@/lib/useRaf'
 
 const SCRIPT =
@@ -143,7 +144,7 @@ export function ClonePanel() {
     <>
       <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
         <section className="scroll w-[min(600px,52%)] shrink-0 space-y-6 border-r border-line p-8">
-          {!hasClone && <ModelGate cap="voice-clone" />}
+          {!hasClone ? <ModelGate cap="voice-clone" /> : !savedId && <PortabilityNote mode="clone" />}
 
           <AnimatePresence mode="wait">
             {savedId ? (
@@ -172,7 +173,7 @@ export function ClonePanel() {
                       Hear a test
                     </Button>
                   )}
-                  <Button onClick={() => (useTts.getState().setVoice(savedId), navigate('tts'))}>Use in Text to Speech</Button>
+                  <Button onClick={() => (selectVoiceById(savedId), navigate('tts'))}>Use in Text to Speech</Button>
                 </div>
               </motion.div>
             ) : (

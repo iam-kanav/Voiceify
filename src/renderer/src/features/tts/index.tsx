@@ -16,7 +16,7 @@ import {
   Trash2,
   Wind
 } from 'lucide-react'
-import { LANGUAGES } from '@shared/catalog'
+import { ALL_LANGUAGES, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
 import { INSTRUCT_PRESETS } from '@shared/voices'
 import { PageHeader } from '@/components/PageHeader'
 import { VoicePicker } from '@/components/VoicePicker'
@@ -24,10 +24,11 @@ import { Select } from '@/components/Popover'
 import { Slider } from '@/components/Slider'
 import { InfoTip } from '@/components/InfoTip'
 import { ModelChooser } from './ModelChooser'
+import { ProviderPicker } from './ProviderPicker'
 import { Badge, Button, Kbd, Tabs, Textarea } from '@/components/ui'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { useApp } from '@/stores/app'
-import { useTts } from '@/stores/tts'
+import { currentParams, useTts } from '@/stores/tts'
 import { playHistoryItem, usePlayer } from '@/stores/player'
 import { useGenerate, usePlayerPadding } from '@/lib/useGenerate'
 import { capabilityFor, compatibleModels, resolveModel } from '@/lib/models'
@@ -45,7 +46,11 @@ const STARTERS = [
 ]
 
 export default function TextToSpeech() {
-  const { text, setText, voiceId, setVoice, modelId, setModel, settings, patch, reset } = useTts()
+  const tts = useTts()
+  const { text, setText, provider: providerId, setProvider, setVoice, setModel, setParam, language, setLanguage, instruct, setInstruct, reset } = tts
+  const provider = PROVIDER_BY_ID.get(providerId) ?? TTS_PROVIDERS[0]
+  const params = currentParams(tts)
+  const modelId = tts.modelByProvider[provider.id] ?? 'auto'
   const voices = useApp((s) => s.voices)
   const navigate = useApp((s) => s.navigate)
   const models = useApp((s) => s.models)
@@ -57,12 +62,15 @@ export default function TextToSpeech() {
   const [advanced, setAdvanced] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
 
-  const voice = voices.find((v) => v.id === voiceId) ?? voices.find((v) => v.id === 'preset:ryan')
-  const cap = capabilityFor(voice, models)
-  const options = compatibleModels(voice, models)
-  const active =
-    options.find((m) => m.id === modelId) ?? resolveModel(cap, models, undefined, appSettings?.defaultModels)
-  const supportsInstruct = voice?.kind === 'preset' && !!active?.capabilities.includes('instruct')
+  // Only voices this family can speak; fall back to its first built-in voice.
+  const usableVoices = voices.filter((v) => providersForVoice(v).some((p) => p.id === provider.id))
+  const voice = usableVoices.find((v) => v.id === tts.voiceByProvider[provider.id]) ?? usableVoices.find((v) => v.kind === 'preset') ?? usableVoices[0]
+  const cap = capabilityFor(voice, models, provider.id)
+  const options = compatibleModels(voice, models, provider.id)
+  const active = options.find((m) => m.id === modelId) ?? resolveModel(cap, models, undefined, appSettings?.defaultModels, provider.id)
+  const supportsInstruct = provider.features.styleInstructions && voice?.kind === 'preset' && !!active?.capabilities.includes('instruct')
+  const mainParams = provider.params.filter((p) => !p.advanced)
+  const advancedParams = provider.params.filter((p) => p.advanced)
   const supportsTags = !!active?.capabilities.includes('emotion-tags')
   const canGenerate = !!text.trim() && !!active && engine.state === 'ready' && !busy
   // Why Generate is disabled, plus a one-click fix where there is one.
@@ -92,8 +100,9 @@ export default function TextToSpeech() {
       {
         text,
         voiceId: voice.id,
+        provider: provider.id,
         modelId: modelId === 'auto' ? undefined : modelId,
-        settings: { ...settings, instruct: supportsInstruct ? settings.instruct : '' }
+        settings: { language, instruct: supportsInstruct ? instruct : '', params }
       },
       { title: voice.name, colors: voice.colors }
     )
@@ -210,141 +219,141 @@ export default function TextToSpeech() {
                   transition={{ duration: 0.15 }}
                   className="space-y-6 p-5"
                 >
+                  <ProviderPicker value={provider.id} onChange={setProvider} />
+
                   <div className="space-y-2">
                     <div className="text-[13px] font-medium">Voice</div>
-                    <VoicePicker value={voice?.id ?? ''} onChange={setVoice} />
+                    <VoicePicker provider={provider.id} value={voice?.id ?? ''} onChange={(id) => setVoice(id)} />
                   </div>
 
-                  <ModelChooser voice={voice} cap={cap} options={options} active={active} value={modelId} onChange={setModel} />
+                  <ModelChooser provider={provider.id} voice={voice} cap={cap} options={options} active={active} value={modelId} onChange={setModel} />
 
-                  {voice?.kind === 'preset' ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-[13px] font-medium">
-                          Style instructions
-                          <InfoTip>
-                            Tell the voice how to speak in plain words: emotion, tone, pace, volume. Works with the Large Built-in Voices model
-                            (Qwen3-TTS 1.7B CustomVoice); the Small one ignores instructions.
-                          </InfoTip>
-                        </span>
-                        {!supportsInstruct && active && <Badge tone="amber">Needs the Large model</Badge>}
-                      </div>
-                      <Textarea
-                        rows={2}
-                        disabled={!supportsInstruct}
-                        value={settings.instruct ?? ''}
-                        onChange={(e) => patch({ instruct: e.target.value })}
-                        placeholder="e.g. Speak warmly and a little faster, with a hint of excitement"
-                        className="disabled:opacity-50"
-                      />
-                      {supportsInstruct && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {INSTRUCT_PRESETS.slice(0, 6).map((p) => (
-                            <button
-                              key={p}
-                              onClick={() => patch({ instruct: p })}
-                              className={cn(
-                                'rounded-full border px-2.5 py-1 text-[11.5px] transition-colors',
-                                settings.instruct === p ? 'border-ink bg-ink text-canvas' : 'border-line text-ink-2 hover:bg-muted'
-                              )}
-                            >
-                              {p.replace(/\.$/, '')}
-                            </button>
-                          ))}
+                  {provider.features.styleInstructions &&
+                    (voice?.kind === 'preset' ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-[13px] font-medium">
+                            Style instructions
+                            <InfoTip>
+                              Tell the voice how to speak in plain words: emotion, tone, pace, volume. {provider.name} follows them with its Large
+                              built-in voices model; the Small one ignores them.
+                            </InfoTip>
+                          </span>
+                          {!supportsInstruct && active && <Badge tone="amber">Needs the Large version</Badge>}
                         </div>
-                      )}
-                      {supportsTags && (
-                        <p className="text-xs text-ink-3">
-                          This model also understands inline tags: [Happy] [Sad] [Angry] [Gentle] [Fast] [Tired] [Fearful] [Surprised] [Disgusted]
-                        </p>
-                      )}
+                        <Textarea
+                          rows={2}
+                          disabled={!supportsInstruct}
+                          value={instruct}
+                          onChange={(e) => setInstruct(e.target.value)}
+                          placeholder="e.g. Speak warmly and a little faster, with a hint of excitement"
+                          className="disabled:opacity-50"
+                        />
+                        {supportsInstruct && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {INSTRUCT_PRESETS.slice(0, 6).map((p) => (
+                              <button
+                                key={p}
+                                onClick={() => setInstruct(p)}
+                                className={cn(
+                                  'rounded-full border px-2.5 py-1 text-[11.5px] transition-colors',
+                                  instruct === p ? 'border-ink bg-ink text-canvas' : 'border-line text-ink-2 hover:bg-muted'
+                                )}
+                              >
+                                {p.replace(/\.$/, '')}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {supportsTags && (
+                          <p className="text-xs text-ink-3">
+                            This model also understands inline tags: [Happy] [Sad] [Angry] [Gentle] [Fast] [Tired] [Fearful] [Surprised] [Disgusted]
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl bg-subtle px-3 py-2.5 text-xs text-ink-3">
+                        Style instructions work with built-in voices. Your own voices keep the delivery of their reference recording.
+                      </p>
+                    ))}
+
+                  {provider.languages.length > 1 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 text-[13px] font-medium">
+                        Language
+                        <InfoTip>Auto-detect works for most text. Pick a language if names, numbers or mixed-language text are read with the wrong accent.</InfoTip>
+                      </div>
+                      <Select
+                        value={provider.languages.includes(language) ? language : 'auto'}
+                        onChange={setLanguage}
+                        options={[
+                          { value: 'auto', label: 'Auto-detect' },
+                          ...ALL_LANGUAGES.filter((l) => provider.languages.includes(l.id)).map((l) => ({ value: l.id, label: l.label }))
+                        ]}
+                      />
                     </div>
-                  ) : (
-                    <p className="rounded-xl bg-subtle px-3 py-2.5 text-xs text-ink-3">
-                      Style instructions are available for built-in voices. Cloned and designed voices keep the delivery of their original sample.
-                    </p>
                   )}
 
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-1.5 text-[13px] font-medium">
-                      Language
-                      <InfoTip>Auto-detect works for most text. Pick a language if names, numbers or mixed-language text are read with the wrong accent.</InfoTip>
-                    </div>
-                    <Select
-                      value={settings.language}
-                      onChange={(language) => patch({ language })}
-                      options={LANGUAGES.map((l) => ({ value: l.id, label: l.label }))}
+                  {mainParams.map((spec) => (
+                    <Slider
+                      key={spec.key}
+                      label={spec.label}
+                      value={params[spec.key]}
+                      min={spec.min}
+                      max={spec.max}
+                      step={spec.step}
+                      onChange={(v) => setParam(spec.key, v)}
+                      left={spec.left}
+                      right={spec.right}
+                      format={(v) => (spec.integer ? String(Math.round(v)) : v.toFixed(2))}
+                      hint={spec.help}
                     />
-                  </div>
+                  ))}
 
-                  <Slider
-                    label="Expressiveness"
-                    value={settings.temperature}
-                    min={0.1}
-                    max={1.5}
-                    step={0.01}
-                    onChange={(temperature) => patch({ temperature })}
-                    left="Steady"
-                    right="Expressive"
-                    format={(v) => v.toFixed(2)}
-                    hint="How much the voice varies its delivery. Steady = predictable and even; Expressive = livelier, but occasionally odd. (Sampling temperature; 0.9 is the model’s default.)"
-                  />
-
-                  <div>
-                    <button
-                      onClick={() => setAdvanced((a) => !a)}
-                      className="flex w-full items-center justify-between text-[13px] font-medium text-ink-2 hover:text-ink"
-                    >
-                      Advanced
-                      <ChevronDown className={cn('size-4 transition-transform', advanced && 'rotate-180')} />
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {advanced && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                          className="overflow-hidden"
-                        >
-                          <div className="space-y-5 pt-4">
-                            <Slider
-                              label="Top P"
-                              value={settings.topP}
-                              min={0.1}
-                              max={1}
-                              step={0.01}
-                              onChange={(topP) => patch({ topP })}
-                              hint="Limits choices to the most likely sounds. Lower values make speech more conservative. Leave at 1.0 unless output sounds erratic."
-                            />
-                            <Slider
-                              label="Top K"
-                              value={settings.topK}
-                              min={1}
-                              max={100}
-                              step={1}
-                              onChange={(topK) => patch({ topK })}
-                              format={(v) => String(Math.round(v))}
-                              hint="How many candidate sounds the model considers at each step. Lower = safer, higher = more varied. Default 50."
-                            />
-                            <Slider
-                              label="Repetition penalty"
-                              value={settings.repetitionPenalty}
-                              min={1}
-                              max={1.5}
-                              step={0.01}
-                              onChange={(repetitionPenalty) => patch({ repetitionPenalty })}
-                              hint="Discourages the model from getting stuck repeating sounds or words. Raise slightly if you hear loops or stutters. Default 1.05."
-                            />
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                  {advancedParams.length > 0 && (
+                    <div>
+                      <button
+                        onClick={() => setAdvanced((a) => !a)}
+                        className="flex w-full items-center justify-between text-[13px] font-medium text-ink-2 hover:text-ink"
+                      >
+                        Advanced
+                        <ChevronDown className={cn('size-4 transition-transform', advanced && 'rotate-180')} />
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {advanced && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                            className="overflow-hidden"
+                          >
+                            <div className="space-y-5 pt-4">
+                              {advancedParams.map((spec) => (
+                                <Slider
+                                  key={spec.key}
+                                  label={spec.label}
+                                  value={params[spec.key]}
+                                  min={spec.min}
+                                  max={spec.max}
+                                  step={spec.step}
+                                  onChange={(v) => setParam(spec.key, v)}
+                                  left={spec.left}
+                                  right={spec.right}
+                                  format={(v) => (spec.integer ? String(Math.round(v)) : v.toFixed(2))}
+                                  hint={spec.help}
+                                />
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
 
                   <button onClick={reset} className="flex items-center gap-1.5 text-xs text-ink-3 transition-colors hover:text-ink">
                     <RotateCcw className="size-3.5" />
-                    Reset to defaults
+                    Reset {provider.name} settings
                   </button>
                 </motion.div>
               ) : (

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'motion/react'
 import { Check, Cpu, Download, ExternalLink, HardDrive, Loader2, MemoryStick, Plus, Sparkles, Star, Trash2, X } from 'lucide-react'
-import type { ModelInfo } from '@shared/types'
+import type { ModelInfo, Provider } from '@shared/types'
+import { VoiceAvatar } from '@/components/VoiceAvatar'
+import { FeatureChips } from '@/features/tts/ProviderPicker'
 import { formatBytes, PRECISION_HELP, PROVIDERS, ROLES, SIZE_HELP } from '@shared/catalog'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge, Button, Card, Input, Meter, ProgressBar, Tabs } from '@/components/ui'
@@ -16,7 +18,7 @@ import { usePlayerPadding } from '@/lib/useGenerate'
 
 type Filter = 'all' | 'installed' | 'recommended'
 
-const ROLE_ORDER = ['built-in-voices', 'voice-cloning', 'voice-design', 'transcription', 'community', 'custom']
+const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'voice-cloning', 'voice-design', 'transcription', 'community', 'custom']
 const GRID = 'grid grid-cols-[minmax(220px,1.6fr)_76px_92px_92px_128px_292px] items-center gap-4'
 
 export default function Models() {
@@ -30,11 +32,23 @@ export default function Models() {
   const missingRec = recommended.filter((m) => m.install.status === 'not-installed' || m.install.status === 'error')
   const installedBytes = models.reduce((n, m) => n + (m.install.status === 'installed' ? m.install.sizeBytes : 0), 0)
 
-  const roles = useMemo(() => {
+  // Model family → what each model does → versions.
+  const families = useMemo(() => {
     const visible = models.filter((m) =>
       filter === 'installed' ? m.install.status !== 'not-installed' : filter === 'recommended' ? m.recommended : true
     )
-    return ROLE_ORDER.map((roleId) => ({ roleId, rows: visible.filter((m) => m.roleId === roleId) })).filter((r) => r.rows.length)
+    const extrasRoles = ['community', 'custom']
+    const out = PROVIDERS.map((p) => ({
+      provider: p as Provider | undefined,
+      roles: ROLE_ORDER.filter((r) => !extrasRoles.includes(r))
+        .map((roleId) => ({ roleId, rows: visible.filter((m) => m.provider === p.id && m.roleId === roleId) }))
+        .filter((r) => r.rows.length)
+    }))
+    out.push({
+      provider: undefined,
+      roles: extrasRoles.map((roleId) => ({ roleId, rows: visible.filter((m) => m.roleId === roleId) })).filter((r) => r.rows.length)
+    })
+    return out.filter((f) => f.roles.length)
   }, [models, filter])
 
   return (
@@ -115,8 +129,18 @@ export default function Models() {
           <CustomModel />
         </div>
 
-        {roles.map(({ roleId, rows }, i) => (
-          <RoleSection key={roleId} roleId={roleId} rows={rows} index={i} />
+        {families.map(({ provider, roles }, i) => (
+          <motion.div
+            key={provider?.id ?? 'extras'}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0, transition: { delay: i * 0.05 } }}
+            className="space-y-6"
+          >
+            {provider ? <FamilyHeader provider={provider} /> : <h2 className="text-lg font-semibold tracking-tight">Community &amp; custom</h2>}
+            {roles.map(({ roleId, rows }) => (
+              <RoleSection key={roleId} roleId={roleId} rows={rows} showRole={!provider || roles.length > 1 || roleId !== 'voices-and-cloning'} />
+            ))}
+          </motion.div>
         ))}
 
         <p className="text-xs text-ink-3">
@@ -128,31 +152,65 @@ export default function Models() {
   )
 }
 
-function RoleSection({ roleId, rows, index }: { roleId: string; rows: ModelInfo[]; index: number }) {
-  const role = ROLES[roleId]
-  const providers = [...new Set(rows.map((r) => r.provider))].map((id) => PROVIDERS.find((p) => p.id === id)).filter(Boolean)
+function FamilyHeader({ provider: p }: { provider: Provider }) {
+  const models = useApp((s) => s.models)
+  const installed = models.filter((m) => m.provider === p.id && isInstalled(m)).length
   return (
-    <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0, transition: { delay: index * 0.04 } }}>
-      <div className="mb-3 flex items-end justify-between gap-6">
-        <div className="min-w-0">
-          <h2 className="text-[17px] font-semibold tracking-tight">{role.label}</h2>
+    <Card className="overflow-hidden">
+      <div className="flex items-start gap-4 p-5">
+        <VoiceAvatar colors={p.colors} size={48} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="text-xl font-semibold tracking-tight">{p.name}</h2>
+            <span className="text-xs text-ink-3">
+              by {p.vendor} · {p.license}
+            </span>
+            {installed > 0 && <Badge tone="green">{installed} installed</Badge>}
+            <button onClick={() => studio.openExternal(p.url)} className="ml-auto flex items-center gap-1 text-xs text-ink-3 hover:text-ink">
+              Model card <ExternalLink className="size-3" />
+            </button>
+          </div>
+          <p className="mt-1 max-w-3xl text-[13px] text-ink-2">{p.description}</p>
+          {p.task === 'tts' && (
+            <div className="mt-3">
+              <FeatureChips provider={p} />
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-px border-t border-line bg-line text-[12.5px]">
+        <div className="bg-surface px-5 py-3">
+          <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-3">Good at</div>
+          <ul className="space-y-0.5 text-ink-2">
+            {p.strengths.map((x) => (
+              <li key={x}>• {x}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="bg-surface px-5 py-3">
+          <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-3">Keep in mind</div>
+          <ul className="space-y-0.5 text-ink-2">
+            {p.limits.map((x) => (
+              <li key={x}>• {x}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function RoleSection({ roleId, rows, showRole }: { roleId: string; rows: ModelInfo[]; showRole: boolean }) {
+  const role = ROLES[roleId]
+  return (
+    <section>
+      {showRole && (
+        <div className="mb-3 min-w-0">
+          <h3 className="text-[15px] font-semibold tracking-tight">{role.label}</h3>
           <p className="mt-0.5 max-w-3xl text-[13px] text-ink-2">{role.blurb}</p>
           <p className="mt-0.5 max-w-3xl text-[13px] text-ink-3">{role.why}</p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {providers.map((p) => (
-            <button
-              key={p!.id}
-              onClick={() => studio.openExternal(p!.url)}
-              className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink"
-              title={p!.description}
-            >
-              Open-source model: {p!.name} by {p!.vendor} · {p!.license}
-              <ExternalLink className="size-3" />
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
       <div className="overflow-hidden rounded-2xl border border-line">
         <div className={cn(GRID, 'border-b border-line bg-subtle px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-ink-3')}>
           <span className="flex items-center gap-1">
@@ -179,7 +237,7 @@ function RoleSection({ roleId, rows, index }: { roleId: string; rows: ModelInfo[
           <ModelRow key={m.id} model={m} />
         ))}
       </div>
-    </motion.section>
+    </section>
   )
 }
 
@@ -212,7 +270,7 @@ function ModelRow({ model: m }: { model: ModelInfo }) {
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium">
-            {m.sizeLabel} ({m.params}) · {m.precisionLabel}
+            {m.sizeLabel === 'Large' || m.sizeLabel === 'Small' ? `${m.sizeLabel} (${m.params}) · ${m.precisionLabel}` : m.precisionLabel}
           </span>
           {m.recommended && (
             <span title={m.recommendedReason} className="shrink-0">

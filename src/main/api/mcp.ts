@@ -7,6 +7,7 @@ import { history } from '../library/history'
 import { voices } from '../library/voices'
 import { models } from '../models/manager'
 import * as studio from '../services/studio'
+import { providersForVoice } from '@shared/providers'
 
 /**
  * The built-in MCP server. Any MCP client (Claude Code, Codex, OpenCode, Cursor, Zed, Claude
@@ -47,7 +48,7 @@ function audioResult(item: HistoryItem, baseUrl: string, includeAudio: boolean) 
 
 export function createMcpServer(baseUrl: string) {
   const server = new McpServer(
-    { name: 'voiceify', title: 'Voiceify', version: '0.1.0' },
+    { name: 'voiceify', title: 'Voiceify', version: '0.2.0' },
     {
       instructions:
         'Voiceify: a local, multi-model voice studio running on this computer. Call list_voices to pick a voice, then text_to_speech. ' +
@@ -84,7 +85,8 @@ export function createMcpServer(baseUrl: string) {
           kind: v.kind,
           description: v.description,
           language: v.language,
-          gender: v.gender
+          gender: v.gender,
+          works_with: providersForVoice(v).map((p) => p.id)
         }))
       return text(JSON.stringify(list, null, 2))
     }
@@ -105,6 +107,7 @@ export function createMcpServer(baseUrl: string) {
           id: m.id,
           name: m.name,
           provider: m.provider,
+          official_name: m.officialName,
           capabilities: m.capabilities,
           size_gb: +(m.sizeBytes / 1e9).toFixed(2),
           status: m.install.status,
@@ -127,8 +130,12 @@ export function createMcpServer(baseUrl: string) {
           .string()
           .optional()
           .describe('Style/emotion/pace instructions, e.g. "Very happy, speak quickly" (built-in voices; needs an instruction-capable model such as Built-in Voices Large)'),
-        language: z.enum(LANG_IDS).optional().describe('Language (default auto-detect)'),
-        model: z.string().optional().describe('Specific model id from list_models'),
+        language: z.enum(LANG_IDS).optional().describe('Language (default auto-detect; single-language models ignore it)'),
+        provider: z
+          .string()
+          .optional()
+          .describe('Model family to speak with, e.g. "qwen3-tts" (expressive, 10 languages) or "pocket-tts" (tiny, fast, English). Built-in voices belong to one family; your own voices work with any family that can clone.'),
+        model: z.string().optional().describe('Specific model variant id from list_models'),
         temperature: z.number().min(0.1).max(1.5).optional().describe('Expressiveness / sampling temperature (default 0.9)'),
         play: z.boolean().optional().describe('Play the result out loud in the app'),
         include_audio: z.boolean().optional().describe('Also return the audio inline as base64 WAV')
@@ -141,6 +148,7 @@ export function createMcpServer(baseUrl: string) {
         const item = await studio.generate({
           text: args.text,
           voiceId: voice?.id,
+          provider: args.provider,
           modelId: args.model,
           stream: false,
           source: 'mcp',

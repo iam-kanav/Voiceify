@@ -10,11 +10,14 @@ import { Modal } from '@/components/Modal'
 import { Popover } from '@/components/Popover'
 import { errorMessage, toast } from '@/components/Toast'
 import { useApp } from '@/stores/app'
-import { useTts } from '@/stores/tts'
+import { selectVoice } from '@/stores/tts'
 import { cn, studio } from '@/lib/api'
+import { PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
+import { isInstalled } from '@/lib/models'
+import { InfoTip } from '@/components/InfoTip'
 import { usePlayerPadding } from '@/lib/useGenerate'
 
-type Tab = 'all' | 'mine' | 'default'
+type Tab = string // 'all' | 'mine' | a provider id
 
 export default function Voices() {
   const voices = useApp((s) => s.voices)
@@ -23,12 +26,20 @@ export default function Voices() {
   const [q, setQ] = useState('')
   const pad = usePlayerPadding()
 
-  const list = useMemo(() => {
+  const matching = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return voices
-      .filter((v) => (tab === 'all' ? true : tab === 'mine' ? v.kind !== 'preset' : v.kind === 'preset'))
-      .filter((v) => !s || [v.name, v.description, v.language, ...(v.tags ?? [])].join(' ').toLowerCase().includes(s))
-  }, [voices, tab, q])
+    return voices.filter((v) => !s || [v.name, v.description, v.language, ...(v.tags ?? [])].join(' ').toLowerCase().includes(s))
+  }, [voices, q])
+  // Sections: your voices, then each model family's built-in voices.
+  const sections = [
+    { id: 'mine', title: 'Your voices', subtitle: 'Voices you designed or cloned. They work with every model that supports your own voices.', voices: matching.filter((v) => v.kind !== 'preset') },
+    ...TTS_PROVIDERS.filter((p) => p.voices.length).map((p) => ({
+      id: p.id,
+      title: `${p.name} voices`,
+      subtitle: `Built into ${p.name} by ${p.vendor}. ${p.tagline}`,
+      voices: matching.filter((v) => v.kind === 'preset' && v.provider === p.id)
+    }))
+  ].filter((sec) => tab === 'all' || sec.id === tab)
 
   const mineCount = voices.filter((v) => v.kind !== 'preset').length
 
@@ -36,7 +47,7 @@ export default function Voices() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title="Voices"
-        subtitle="Built-in model voices plus every voice you design or clone."
+        subtitle="Every model’s built-in voices, plus the voices you design or clone."
         right={
           <>
             <Button variant="outline" icon={<Fingerprint className="size-4" />} onClick={() => navigate('create-voice', { mode: 'clone' })}>
@@ -56,8 +67,8 @@ export default function Voices() {
             onChange={setTab}
             tabs={[
               { id: 'all', label: 'All voices' },
-              { id: 'mine', label: `My voices${mineCount ? ` · ${mineCount}` : ''}` },
-              { id: 'default', label: 'Built-in' }
+              { id: 'mine', label: `Your voices${mineCount ? ` · ${mineCount}` : ''}` },
+              ...TTS_PROVIDERS.filter((p) => p.voices.length).map((p) => ({ id: p.id, label: p.name }))
             ]}
           />
           <div className="relative mb-2 w-64">
@@ -66,26 +77,36 @@ export default function Voices() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 py-6 lg:grid-cols-2 2xl:grid-cols-3">
-          {tab !== 'default' && !q && (
-            <motion.button
-              layout
-              onClick={() => navigate('create-voice')}
-              className="flex min-h-[132px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line-strong text-ink-2 transition-colors hover:bg-subtle hover:text-ink"
-            >
-              <span className="flex size-9 items-center justify-center rounded-full bg-muted">
-                <Plus className="size-4" />
-              </span>
-              <span className="text-sm font-medium">Design or clone a new voice</span>
-            </motion.button>
-          )}
-          <AnimatePresence initial={false}>
-            {list.map((v, i) => (
-              <VoiceCard key={v.id} voice={v} index={i} onUse={() => (useTts.getState().setVoice(v.id), navigate('tts'))} />
-            ))}
-          </AnimatePresence>
+        <div className="space-y-10 py-6">
+          {sections.map((sec) => (
+            <section key={sec.id}>
+              <div className="mb-3">
+                <h2 className="text-[15px] font-semibold tracking-tight">{sec.title}</h2>
+                <p className="mt-0.5 text-[13px] text-ink-3">{sec.subtitle}</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                {sec.id === 'mine' && !q && (
+                  <motion.button
+                    layout
+                    onClick={() => navigate('create-voice')}
+                    className="flex min-h-[132px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line-strong text-ink-2 transition-colors hover:bg-subtle hover:text-ink"
+                  >
+                    <span className="flex size-9 items-center justify-center rounded-full bg-muted">
+                      <Plus className="size-4" />
+                    </span>
+                    <span className="text-sm font-medium">Design or clone a new voice</span>
+                  </motion.button>
+                )}
+                <AnimatePresence initial={false}>
+                  {sec.voices.map((v, i) => (
+                    <VoiceCard key={v.id} voice={v} index={i} onUse={() => (selectVoice(v), navigate('tts'))} />
+                  ))}
+                </AnimatePresence>
+              </div>
+              {q && !sec.voices.length && <div className="py-4 text-sm text-ink-3">No matches.</div>}
+            </section>
+          ))}
         </div>
-        {!list.length && <div className="pb-16 text-center text-sm text-ink-3">No voices found.</div>}
       </div>
 
     </div>
@@ -110,9 +131,12 @@ function VoiceCard({ voice, index, onUse }: { voice: Voice; index: number; onUse
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[15px] font-semibold">{voice.name}</span>
-            <Badge tone={voice.kind === 'cloned' ? 'blue' : voice.kind === 'designed' ? 'violet' : 'neutral'}>{KIND_LABEL[voice.kind]}</Badge>
+            <Badge tone={voice.kind === 'cloned' ? 'blue' : voice.kind === 'designed' ? 'violet' : 'neutral'}>
+              {voice.kind === 'preset' ? (PROVIDER_BY_ID.get(voice.provider ?? '')?.name ?? KIND_LABEL.preset) : KIND_LABEL[voice.kind]}
+            </Badge>
           </div>
           <p className="mt-0.5 line-clamp-2 text-[13px] text-ink-3">{voice.description}</p>
+          {voice.kind !== 'preset' && <WorksWith voice={voice} />}
         </div>
         <PreviewButton voice={voice} />
       </div>
@@ -173,6 +197,33 @@ function VoiceCard({ voice, index, onUse }: { voice: Voice; index: number; onUse
         <div />
       </Modal>
     </motion.div>
+  )
+}
+
+/** Which model families can speak one of your voices, with installed ones highlighted. */
+function WorksWith({ voice }: { voice: Voice }) {
+  const models = useApp((s) => s.models)
+  const families = providersForVoice(voice)
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-ink-3">
+      Works with
+      {families.map((p) => {
+        const ready = models.some((m) => m.provider === p.id && isInstalled(m) && m.capabilities.includes('voice-clone'))
+        return (
+          <span
+            key={p.id}
+            title={ready ? `${p.name} is installed` : `Install ${p.name} to use this voice with it`}
+            className={cn('rounded-full px-1.5 py-px', ready ? 'bg-muted text-ink-2' : 'border border-dashed border-line-strong')}
+          >
+            {p.name}
+          </span>
+        )
+      })}
+      <InfoTip>
+        Your voices are stored as a short reference recording, so any model that supports your own voices can speak them — including ones that can’t
+        design voices themselves.
+      </InfoTip>
+    </div>
   )
 }
 

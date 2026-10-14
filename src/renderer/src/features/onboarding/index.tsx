@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertCircle, ArrowRight, Check, Cpu, Loader2, Lock, Zap } from 'lucide-react'
-import type { Capability, ModelInfo } from '@shared/types'
+import type { ModelInfo } from '@shared/types'
+import { PROVIDER_BY_ID } from '@shared/providers'
 import { formatBytes } from '@shared/catalog'
 import { Button, ProgressBar, Toggle } from '@/components/ui'
 import { Select } from '@/components/Popover'
@@ -16,30 +17,52 @@ import { studio, cn } from '@/lib/api'
  * everything is ready, so the rest of the app never has to show setup UI.
  */
 
-const GROUPS: { cap: Capability; familyIds: string[]; title: string; body: string; colors: [string, string] }[] = [
+interface Group {
+  key: string
+  provider: string
+  familyIds: string[]
+  title: string
+  body: string
+  colors: [string, string]
+}
+
+/** Setup choices, grouped by model family. */
+const GROUPS: Group[] = [
   {
-    cap: 'preset-voices',
+    key: 'qwen-voices',
+    provider: 'qwen3-tts',
     familyIds: ['qwen3-tts-1.7b-customvoice', 'qwen3-tts-0.6b-customvoice'],
-    title: 'Text to Speech',
-    body: 'Built-in voices with emotion & style instructions',
+    title: 'Built-in voices',
+    body: '9 voices in 10 languages, with style instructions',
     colors: ['#27272a', '#71717a']
   },
   {
-    cap: 'voice-design',
+    key: 'qwen-design',
+    provider: 'qwen3-tts',
     familyIds: ['qwen3-tts-1.7b-voicedesign'],
     title: 'Voice Design',
     body: 'Invent new voices from a text description',
     colors: ['#8b5cf6', '#ec4899']
   },
   {
-    cap: 'voice-clone',
+    key: 'qwen-clone',
+    provider: 'qwen3-tts',
     familyIds: ['qwen3-tts-1.7b-base', 'qwen3-tts-0.6b-base'],
     title: 'Voice Cloning',
-    body: 'Clone any voice from a few seconds of audio',
+    body: 'Speak with voices you clone or design',
     colors: ['#0ea5e9', '#22c55e']
   },
   {
-    cap: 'transcribe',
+    key: 'pocket',
+    provider: 'pocket-tts',
+    familyIds: ['pocket-tts'],
+    title: 'Pocket TTS',
+    body: 'Tiny, very fast English voices and cloning in one small download',
+    colors: ['#14b8a6', '#0ea5e9']
+  },
+  {
+    key: 'asr',
+    provider: 'qwen3-asr',
     familyIds: ['qwen3-asr-0.6b', 'qwen3-asr-1.7b'],
     title: 'Auto-transcription',
     body: 'Fills in voice-clone transcripts for you',
@@ -144,20 +167,16 @@ function ModelStep({ onNext, onBack, onSkip }: { onNext: (ids: string[]) => void
     for (const g of GROUPS) {
       const opts = models.filter((m) => g.familyIds.includes(m.familyId))
       const rec = opts.find((m) => m.recommended) ?? opts[0]
-      sel[g.cap] = { on: true, id: rec?.id ?? '' }
+      sel[g.key] = { on: true, id: rec?.id ?? '' }
     }
     return sel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const [sel, setSel] = useState(initial)
-  const [extra, setExtra] = useState(false)
 
-  const chosen = GROUPS.filter((g) => sel[g.cap].on)
-    .map((g) => models.find((m) => m.id === sel[g.cap].id))
+  const chosen = GROUPS.filter((g) => sel[g.key].on)
+    .map((g) => models.find((m) => m.id === sel[g.key].id))
     .filter((m): m is ModelInfo => !!m)
-  const fast = models.find((m) => m.id === 'qwen3-tts-0.6b-customvoice-8bit')
-  const fastAlreadyChosen = !!fast && chosen.includes(fast)
-  if (extra && fast && !fastAlreadyChosen) chosen.push(fast)
   const total = chosen.filter((m) => m.install.status !== 'installed').reduce((n, m) => n + m.sizeBytes, 0)
 
   return (
@@ -171,10 +190,17 @@ function ModelStep({ onNext, onBack, onSkip }: { onNext: (ids: string[]) => void
       <div className="mt-6 space-y-3">
         {GROUPS.map((g, i) => {
           const opts = models.filter((m) => g.familyIds.includes(m.familyId))
-          const s = sel[g.cap]
+          const s = sel[g.key]
+          const family = i === 0 || GROUPS[i - 1].provider !== g.provider ? PROVIDER_BY_ID.get(g.provider) : undefined
           return (
+            <div key={g.key}>
+              {family && (
+                <div className={cn('mb-2 flex items-baseline gap-2 px-1', i > 0 && 'pt-3')}>
+                  <span className="text-sm font-semibold">{family.task === 'asr' ? 'Helper' : family.name}</span>
+                  <span className="text-xs text-ink-3">{family.task === 'asr' ? 'Optional' : `${family.vendor} · ${family.tagline}`}</span>
+                </div>
+              )}
             <motion.div
-              key={g.cap}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0, transition: { delay: 0.05 * i } }}
               className={cn('flex items-center gap-4 rounded-2xl border p-4 transition-all', s.on ? 'border-line-strong' : 'border-line opacity-60')}
@@ -187,7 +213,7 @@ function ModelStep({ onNext, onBack, onSkip }: { onNext: (ids: string[]) => void
               <div className="w-64">
                 <Select
                   value={s.id}
-                  onChange={(id) => setSel((p) => ({ ...p, [g.cap]: { on: true, id } }))}
+                  onChange={(id) => setSel((p) => ({ ...p, [g.key]: { on: true, id } }))}
                   options={opts.map((m) => ({
                     value: m.id,
                     label: (
@@ -200,16 +226,11 @@ function ModelStep({ onNext, onBack, onSkip }: { onNext: (ids: string[]) => void
                   }))}
                 />
               </div>
-              <Toggle checked={s.on} onChange={(on) => setSel((p) => ({ ...p, [g.cap]: { ...p[g.cap], on } }))} />
+              <Toggle checked={s.on} onChange={(on) => setSel((p) => ({ ...p, [g.key]: { ...p[g.key], on } }))} />
             </motion.div>
+            </div>
           )
         })}
-        {fast && !fastAlreadyChosen && (
-          <label className="flex cursor-pointer items-center gap-3 px-1 pt-1 text-[13px] text-ink-2">
-            <Toggle checked={extra} onChange={setExtra} />
-            Also install the Small built-in voices model for quick drafts ({formatBytes(fast.sizeBytes)})
-          </label>
-        )}
       </div>
 
       <div className="mt-8 flex items-center justify-between">

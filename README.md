@@ -5,7 +5,7 @@
 # Voiceify
 
 **A private voice studio that runs on your own computer.**<br>
-Text to speech, voice design and voice cloning with open-source AI models. No cloud, no accounts, no per-character fees.
+Text to speech, voice design and voice cloning with multiple open-source AI models. No cloud, no accounts, no per-character fees.
 
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20silicon)-black?logo=apple)](#requirements)
@@ -28,7 +28,8 @@ Text to speech, voice design and voice cloning with open-source AI models. No cl
 
 - **Private by design.** Your text, recordings and voices never leave your computer. After setup, everything works offline.
 - **Free to run.** No subscriptions or character quotas. Generate as much audio as your hardware allows.
-- **Studio-grade open models.** Ships with [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) (Apache-2.0), which supports 10 languages, 3-second voice cloning, and voices designed from a text description.
+- **Several open models, one studio.** [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) for expressive speech in 10 languages, voice design and high-fidelity cloning; [Pocket TTS](https://huggingface.co/kyutai/pocket-tts) for tiny (140 MB), very fast English voices and cloning. Pick a model and the interface adapts to what it can do.
+- **Voices travel between models.** Voices you clone or design are stored as a short reference recording, so any model that supports your own voices can speak them. Design a voice with Qwen3-TTS, then use it with Pocket TTS.
 - **Pick your trade-off.** Install the model sizes and precisions that suit your machine. Voiceify recommends a set based on your memory and shows the speed it actually measures on your computer.
 - **Built for agents.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Codex, Cursor and other assistants speak, design and clone voices.
 - **Made to grow.** Model providers and features plug into registries, so new model families and tools (sound effects, transcription, …) slot in cleanly.
@@ -117,7 +118,18 @@ Also included: a full generation history saved as WAV, light and dark themes, a 
 
 ## Models
 
-Voiceify names models by what they do and always shows the open-source model underneath.
+Pick a model family in Text to Speech and the interface adapts: options a model can't use disappear, and model-specific settings come with plain-language explanations.
+
+| | Qwen3-TTS (Alibaba Qwen) | Pocket TTS (Kyutai) |
+|---|---|---|
+| Built-in voices | 9, with style instructions | 8 |
+| Languages | 10 | English |
+| Your own voices (cloning) | ✓ (separate Voice Cloning model) | ✓ (same model) |
+| Voice design | ✓ (Voice Design model) | — (use a voice designed with Qwen3-TTS) |
+| Download | 2–4.5 GB per model | 90–240 MB |
+| License | Apache-2.0 | CC-BY-4.0 |
+
+Within Qwen3-TTS, each task uses its own model; Voiceify names them by what they do and shows the open-source name underneath:
 
 | In Voiceify | Open-source model | What it's for |
 |---|---|---|
@@ -125,11 +137,12 @@ Voiceify names models by what they do and always shows the open-source model und
 | **Built-in Voices** · Small | Qwen3-TTS 0.6B CustomVoice | The same voices, faster and lighter, without style instructions |
 | **Voice Design** | Qwen3-TTS 1.7B VoiceDesign | Invents a voice from a written description |
 | **Voice Cloning** · Large / Small | Qwen3-TTS 1.7B / 0.6B Base | Copies a voice from audio; also speaks your saved designed voices |
+| **Pocket TTS** | Kyutai Pocket TTS (100M) | Built-in voices and cloning in one tiny model |
 | **Transcription** · Small / Large | Qwen3-ASR 0.6B / 1.7B | Auto-fills transcripts when cloning (optional helper) |
 
 Every model comes in **full precision** and in compressed **8 / 6 / 5 / 4-bit** versions. Fewer bits mean a smaller download, less memory and faster speech, at some cost to expressiveness. 8-bit sounds almost identical to full precision and is the default recommendation for most machines.
 
-Weights are downloaded from Hugging Face ([mlx-community](https://huggingface.co/mlx-community) conversions of the official Qwen releases). Voiceify itself contains no model weights.
+Weights are downloaded from Hugging Face ([mlx-community](https://huggingface.co/mlx-community) conversions of the official releases). Voiceify itself contains no model weights.
 
 ## Connect AI agents (MCP)
 
@@ -143,7 +156,7 @@ Then just ask: *“Read the release notes aloud in the Aiden voice, calm and pro
 
 | Tool | What it does |
 |---|---|
-| `text_to_speech` | Speak text with any voice, with optional style instructions, language and in-app playback |
+| `text_to_speech` | Speak text with any voice and model family (`provider: "qwen3-tts"` or `"pocket-tts"`), with optional style instructions, language and in-app playback |
 | `list_voices` | List built-in, cloned and designed voices |
 | `design_voice` | Invent a voice from a description and optionally save it |
 | `clone_voice` | Clone a voice from an audio file (auto-transcribed) |
@@ -209,7 +222,7 @@ docs/images/       README screenshots
 <details>
 <summary><b>Adding a model provider or a feature</b></summary>
 
-- **Model provider:** add a `Provider` and its variants to `src/shared/catalog.ts`, then teach `resources/engine/server.py` to load and run it. The Models page, setup wizard, recommendations and MCP pick it up automatically.
+- **Model provider:** describe it in `src/shared/providers.ts` (features, languages, explained settings, built-in voices), add its downloadable variants to `src/shared/catalog.ts`, then teach `resources/engine/server.py` to load and run it. The model picker, settings panel, voice picker, Models page, setup wizard and MCP all render from those definitions.
 - **Feature (e.g. Sound Effects):** add a page in `src/renderer/src/features/`, register it in `app/registry.tsx`, add an engine handler and a service function, and optionally expose an MCP tool.
 
 </details>
@@ -219,9 +232,10 @@ docs/images/       README screenshots
 - [x] Text to speech, voice design and voice cloning with Qwen3-TTS
 - [x] Model manager with size and precision options and hardware-aware recommendations
 - [x] Built-in MCP server and REST API
+- [x] Multiple model families (Qwen3-TTS, Pocket TTS) with a model-aware interface
 - [ ] Speech to text page (Qwen3-ASR)
 - [ ] Sound effects generation
-- [ ] More model providers
+- [ ] More model providers (multilingual Pocket TTS, …)
 - [ ] Windows and Linux support (needs a non-MLX inference backend)
 - [ ] Signed and notarized macOS builds
 
@@ -260,10 +274,11 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and ou
 ## Acknowledgements
 
 - The [Qwen team](https://github.com/QwenLM) for releasing Qwen3-TTS and Qwen3-ASR under Apache-2.0
+- [Kyutai](https://kyutai.org) for Pocket TTS (CC-BY-4.0)
 - [Apple MLX](https://github.com/ml-explore/mlx) and [mlx-audio](https://github.com/Blaizzy/mlx-audio) for fast on-device inference
 - [mlx-community](https://huggingface.co/mlx-community) for the MLX model conversions
 - Everyone behind the libraries listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 ## License
 
-Voiceify is released under the [Apache License 2.0](LICENSE). Model weights are downloaded separately and keep their own licenses (all Apache-2.0 at present); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Voiceify is released under the [Apache License 2.0](LICENSE). Model weights are downloaded separately and keep their own licenses (Qwen3: Apache-2.0, Pocket TTS: CC-BY-4.0); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

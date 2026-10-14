@@ -35,11 +35,17 @@ export default function History() {
 
   const reuse = (h: HistoryItem) => {
     const t = useTts.getState()
-    t.setText(h.text)
-    const voiceExists = !!h.voiceId && voices.some((v) => v.id === h.voiceId)
-    if (voiceExists) t.setVoice(h.voiceId!)
-    else toast.info(`“${h.voiceName}” no longer exists`, 'Your current voice is selected instead.')
-    t.patch(h.settings)
+    const provider = h.provider ?? 'qwen3-tts'
+    const voice = voices.find((v) => v.id === h.voiceId)
+    useTts.setState({
+      text: h.text,
+      provider,
+      language: h.settings.language ?? 'auto',
+      instruct: h.settings.instruct ?? '',
+      paramsByProvider: { ...t.paramsByProvider, [provider]: { ...t.paramsByProvider[provider], ...(h.settings.params ?? {}) } },
+      ...(voice ? { voiceByProvider: { ...t.voiceByProvider, [provider]: voice.id } } : {})
+    })
+    if (!voice) toast.info(`“${h.voiceName}” no longer exists`, 'Another voice is selected instead.')
     navigate('tts')
   }
 

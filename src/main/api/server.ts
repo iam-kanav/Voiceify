@@ -19,7 +19,7 @@ import { createMcpServer } from './mcp'
  *   GET  /api/voices     voices
  *   GET  /api/models     models
  *   GET  /api/history    recent generations
- *   POST /api/tts        {text, voice?, instructions?, language?, model?, temperature?} → JSON (or WAV with ?format=wav)
+ *   POST /api/tts        {text, voice?, provider?, instructions?, language?, model?, temperature?} → JSON (or WAV with ?format=wav)
  *   GET  /api/audio/:id  WAV file
  */
 
@@ -121,6 +121,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, port: number) {
       const item = await studio.generate({
         text: String(b.text ?? ''),
         voiceId: voice?.id,
+        provider: typeof b.provider === 'string' ? b.provider : undefined,
         modelId: typeof b.model === 'string' ? b.model : undefined,
         stream: false,
         source: 'api',

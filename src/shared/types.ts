@@ -13,18 +13,59 @@ export type Capability =
 
 export type Quant = '4bit' | '5bit' | '6bit' | '8bit' | 'bf16'
 
-export type ModelSource =
-  | { type: 'hf-mlx'; repo: string } // ready-to-run MLX weights
-  | { type: 'hf-convert'; repo: string; qBits?: 4 | 6 | 8 } // PyTorch weights converted locally
+/** Extra files fetched alongside a model (e.g. a tokenizer or voice embeddings it would otherwise download at runtime). */
+export interface ExtraFile {
+  repo: string
+  path: string
+  revision?: string
+  /** Where to save it inside the model folder (defaults to `path`). */
+  saveAs?: string
+  size: number
+}
 
-/** A model family from one vendor (Qwen3-TTS today; more later). */
+export type ModelSource =
+  | { type: 'hf-mlx'; repo: string; extras?: ExtraFile[] } // ready-to-run MLX weights
+  | { type: 'hf-convert'; repo: string; qBits?: 4 | 6 | 8; extras?: ExtraFile[] } // PyTorch weights converted locally
+
+/** A setting a provider understands, with a plain-language explanation. Rendered as a slider. */
+export interface ParamSpec {
+  /** Key in GenerationSettings.params. */
+  key: string
+  /** Keyword argument the engine passes to the model. */
+  engineKey: string
+  label: string
+  help: string
+  min: number
+  max: number
+  step: number
+  default: number
+  integer?: boolean
+  /** Tucked under "Advanced". */
+  advanced?: boolean
+  left?: string
+  right?: string
+}
+
+/** A model family (e.g. Qwen3-TTS, Pocket TTS). See src/shared/providers.ts. */
 export interface Provider {
   id: string
   name: string
   vendor: string
   license: string
   url: string
+  task: Task
+  /** One line shown in pickers. */
+  tagline: string
   description: string
+  strengths: string[]
+  limits: string[]
+  colors: [string, string]
+  /** Language ids it can speak (see ALL_LANGUAGES). */
+  languages: string[]
+  features: { builtInVoices: boolean; styleInstructions: boolean; voiceCloning: boolean; voiceDesign: boolean }
+  params: ParamSpec[]
+  /** Built-in voices that ship with this provider's models. */
+  voices: Voice[]
 }
 
 export interface ModelVariant {
@@ -138,21 +179,21 @@ export type GenerationMode = 'preset' | 'clone' | 'design'
 
 export interface GenerationSettings {
   language: string // "auto" | "english" | …
-  temperature: number
-  topP: number
-  topK: number
-  repetitionPenalty: number
-  /** Natural-language style/emotion/pace control (1.7B CustomVoice) — Qwen3's way to change delivery. */
+  /** Natural-language style/emotion/pace control (providers with styleInstructions). */
   instruct?: string
+  /** Provider-specific settings keyed by ParamSpec.key; missing keys use the provider's defaults. */
+  params: Record<string, number>
 }
 
 export interface GenerateRequest {
   text: string
+  /** Which model family should speak (e.g. "qwen3-tts", "pocket-tts"). Defaults to the voice's own or the default provider. */
+  provider?: string
   voiceId?: string
   /** For direct voice design previews (no saved voice). */
   designPrompt?: string
   modelId?: string
-  settings?: Partial<GenerationSettings>
+  settings?: Partial<GenerationSettings> & { temperature?: number }
   stream?: boolean
   source?: 'app' | 'mcp' | 'api'
 }
@@ -160,6 +201,7 @@ export interface GenerateRequest {
 export interface HistoryItem {
   id: string
   text: string
+  provider?: string
   voiceId?: string
   voiceName: string
   modelId: string
@@ -170,6 +212,8 @@ export interface HistoryItem {
   sampleRate: number
   processingSec: number
   rtf: number
+  /** The model had to be loaded first, so processing time includes loading (excluded from speed stats). */
+  coldStart?: boolean
   createdAt: number
   source: 'app' | 'mcp' | 'api'
   /** Designed-voice previews are kept out of the main history list. */
@@ -194,7 +238,10 @@ export interface AppSettings {
   apiPort: number
   apiEnabled: boolean
   maxLoadedModels: number
-  defaultModels: Partial<Record<Capability, string>>
+  /** Default variant per "provider/capability" (e.g. "qwen3-tts/preset-voices"). */
+  defaultModels: Record<string, string>
+  /** Model family selected when nothing else decides. */
+  defaultProvider: string
   onboardingComplete: boolean
   defaultGeneration: GenerationSettings
 }

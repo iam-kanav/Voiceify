@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { ChevronDown, Loader2, Pause, Play, Search } from 'lucide-react'
 import type { Voice } from '@shared/types'
 import { useApp } from '@/stores/app'
+import { PROVIDER_BY_ID, providersForVoice } from '@shared/providers'
 import { usePlayer } from '@/stores/player'
 import { cn, studio } from '@/lib/api'
 import { Popover } from './Popover'
@@ -71,21 +72,31 @@ export function PreviewButton({ voice, className }: { voice: Voice; className?: 
   )
 }
 
-export function VoicePicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+/**
+ * Voice picker for one model family: its built-in voices, plus your own voices when the family can
+ * clone. Voices other families own are left out, since this model can't speak them.
+ */
+export function VoicePicker({ value, onChange, provider }: { value: string; onChange: (id: string) => void; provider?: string }) {
   const voices = useApp((s) => s.voices)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const btn = useRef<HTMLButtonElement>(null)
-  const current = voices.find((v) => v.id === value) ?? voices.find((v) => v.id === 'preset:ryan')
+  const family = provider ? PROVIDER_BY_ID.get(provider) : undefined
+  const usable = useMemo(
+    () => (provider ? voices.filter((v) => providersForVoice(v).some((p) => p.id === provider)) : voices),
+    [voices, provider]
+  )
+  const current = usable.find((v) => v.id === value) ?? usable.find((v) => v.kind === 'preset') ?? usable[0]
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return voices.filter(
+    return usable.filter(
       (v) => !s || [v.name, v.description, v.language, ...(v.tags ?? [])].join(' ').toLowerCase().includes(s)
     )
-  }, [voices, q])
+  }, [usable, q])
   const mine = filtered.filter((v) => v.kind !== 'preset')
   const presets = filtered.filter((v) => v.kind === 'preset')
+  const hasOwnVoices = voices.some((v) => v.kind !== 'preset')
 
   const row = (v: Voice) => (
     <div
@@ -143,17 +154,27 @@ export function VoicePicker({ value, onChange }: { value: string; onChange: (id:
         </div>
         {mine.length > 0 && (
           <>
-            <div className="px-2 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wider text-ink-3">My voices</div>
+            <div className="px-2 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wider text-ink-3">Your voices</div>
             {mine.map(row)}
           </>
         )}
         {presets.length > 0 && (
           <>
-            <div className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-ink-3">Built-in voices</div>
+            <div className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-ink-3">{family ? `${family.name} voices` : 'Built-in voices'}</div>
             {presets.map(row)}
           </>
         )}
         {!filtered.length && <div className="px-3 py-6 text-center text-sm text-ink-3">No voices match “{q}”.</div>}
+        {family && !family.features.voiceCloning && hasOwnVoices && (
+          <div className="mx-1 mt-1 rounded-lg bg-subtle px-2.5 py-2 text-[11.5px] text-ink-3">
+            {family.name} can only speak its built-in voices. Switch models to use your own.
+          </div>
+        )}
+        {family?.features.voiceCloning && !hasOwnVoices && (
+          <div className="mx-1 mt-1 rounded-lg bg-subtle px-2.5 py-2 text-[11.5px] text-ink-3">
+            Voices you clone or design in Create Voice will appear here too.
+          </div>
+        )}
       </Popover>
     </>
   )
