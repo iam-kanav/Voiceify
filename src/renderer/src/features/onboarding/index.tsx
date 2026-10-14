@@ -63,9 +63,9 @@ const GROUPS: Group[] = [
   {
     key: 'asr',
     provider: 'qwen3-asr',
-    familyIds: ['qwen3-asr-0.6b', 'qwen3-asr-1.7b'],
-    title: 'Auto-transcription',
-    body: 'Fills in voice-clone transcripts for you',
+    familyIds: ['qwen3-asr-0.6b', 'qwen3-asr-1.7b', 'whisper-large-v3-turbo', 'whisper-large-v3'],
+    title: 'Speech to Text',
+    body: 'Transcribe audio and video, and auto-fill voice-clone transcripts',
     colors: ['#f97316', '#eab308']
   }
 ]
@@ -196,8 +196,8 @@ function ModelStep({ onNext, onBack, onSkip }: { onNext: (ids: string[]) => void
             <div key={g.key}>
               {family && (
                 <div className={cn('mb-2 flex items-baseline gap-2 px-1', i > 0 && 'pt-3')}>
-                  <span className="text-sm font-semibold">{family.task === 'asr' ? 'Helper' : family.name}</span>
-                  <span className="text-xs text-ink-3">{family.task === 'asr' ? 'Optional' : `${family.vendor} · ${family.tagline}`}</span>
+                  <span className="text-sm font-semibold">{family.task === 'asr' ? 'Speech to Text' : family.name}</span>
+                  <span className="text-xs text-ink-3">{family.task === 'asr' ? 'Optional · Qwen3-ASR or OpenAI Whisper' : `${family.vendor} · ${family.tagline}`}</span>
                 </div>
               )}
             <motion.div

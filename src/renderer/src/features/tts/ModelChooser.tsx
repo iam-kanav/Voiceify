@@ -27,9 +27,12 @@ export function ModelChooser({
   active,
   value,
   onChange,
-  provider
+  provider,
+  help: helpOverride
 }: {
   provider?: string
+  /** Replaces the voice-centric explanation (e.g. for speech-to-text models). */
+  help?: React.ReactNode
   voice: Voice | undefined
   cap: Capability
   options: ModelInfo[]
@@ -42,11 +45,12 @@ export function ModelChooser({
   const [open, setOpen] = useState(false)
   const btn = useRef<HTMLButtonElement>(null)
   const multiRole = new Set(options.map((o) => o.roleId)).size > 1
-  const sized = (m: ModelInfo) => m.sizeLabel === 'Large' || m.sizeLabel === 'Small'
+  // Named sizes ("Large", "Small", "Turbo") are worth showing; parameter counts ("100M") aren't.
+  const sized = (m: ModelInfo) => !!m.sizeLabel && !/^\d/.test(m.sizeLabel)
   const label = (m: ModelInfo) =>
     `${multiRole ? `${m.role} · ` : ''}${sized(m) ? `${m.sizeLabel} · ` : ''}${m.precisionLabel}`
 
-  const help = (
+  const help = helpOverride ?? (
     <>
       <p>
         {voice?.kind === 'preset'

@@ -11,11 +11,12 @@ class History {
   private store = new JsonStore<HistoryItem[]>('history', [])
 
   init() {
-    // Drop voice-design previews older than a day and rows whose audio vanished.
+    // Drop voice-design previews older than a day, generations nobody saved (in "Only what I
+    // save" mode) and rows whose audio vanished.
     const now = Date.now()
     const keep: HistoryItem[] = []
     for (const h of this.store.get()) {
-      const stale = h.ephemeral && now - h.createdAt > EPHEMERAL_TTL
+      const stale = (h.ephemeral && now - h.createdAt > EPHEMERAL_TTL) || h.saved === false
       if (stale || !existsSync(h.audioPath)) {
         if (stale) rmSync(h.audioPath, { force: true })
         continue
@@ -23,6 +24,29 @@ class History {
       keep.push(h)
     }
     this.store.set(keep)
+  }
+
+  /** On quit: remove what wasn't saved. */
+  dropUnsaved() {
+    const list = this.store.get()
+    if (!list.some((h) => h.saved === false)) return
+    for (const h of list) if (h.saved === false) rmSync(h.audioPath, { force: true })
+    this.store.set(list.filter((h) => h.saved !== false))
+  }
+
+  save(id: string) {
+    let found: HistoryItem | undefined
+    this.store.update((list) => list.map((h) => (h.id === id ? (found = { ...h, saved: true }) : h)))
+    if (!found) throw new Error('That generation no longer exists.')
+    bus.publish('historyChanged', null)
+    return found
+  }
+
+  /** Switching to "Keep everything" keeps what's currently unsaved, too. */
+  saveAll() {
+    if (!this.store.get().some((h) => h.saved === false)) return
+    this.store.update((list) => list.map((h) => (h.saved === false ? { ...h, saved: true } : h)))
+    bus.publish('historyChanged', null)
   }
 
   audioPathFor(id: string) {

@@ -7,6 +7,7 @@ import { studio } from '@/lib/api'
 import { Sidebar } from '@/components/Sidebar'
 import { PlayerBar } from '@/components/PlayerBar'
 import { Toaster } from '@/components/Toast'
+import { SaveModePrompt } from '@/components/SaveMode'
 import { Button, Spinner } from '@/components/ui'
 import { Onboarding } from '@/features/onboarding'
 
@@ -85,6 +86,7 @@ export function App() {
       </div>
       <AnimatePresence>{!onboarded && <Onboarding />}</AnimatePresence>
       <Toaster />
+      <SaveModePrompt />
     </MotionConfig>
   )
 }

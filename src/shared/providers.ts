@@ -23,6 +23,25 @@ export const ALL_LANGUAGES = [
   { id: 'italian', label: 'Italian' }
 ]
 
+/** Languages speech recognition can be told to expect. `code` is Whisper's ISO code. */
+export const STT_LANGUAGES: { id: string; label: string; code: string }[] = (
+  [
+    ['english', 'en'], ['chinese', 'zh'], ['cantonese', 'yue'], ['japanese', 'ja'], ['korean', 'ko'], ['german', 'de'],
+    ['french', 'fr'], ['spanish', 'es'], ['portuguese', 'pt'], ['italian', 'it'], ['russian', 'ru'], ['arabic', 'ar'],
+    ['hindi', 'hi'], ['turkish', 'tr'], ['dutch', 'nl'], ['polish', 'pl'], ['swedish', 'sv'], ['danish', 'da'],
+    ['finnish', 'fi'], ['czech', 'cs'], ['greek', 'el'], ['hungarian', 'hu'], ['romanian', 'ro'], ['indonesian', 'id'],
+    ['malay', 'ms'], ['thai', 'th'], ['vietnamese', 'vi'], ['filipino', 'tl'], ['persian', 'fa'], ['macedonian', 'mk'],
+    ['ukrainian', 'uk'], ['hebrew', 'he'], ['catalan', 'ca'], ['norwegian', 'no'], ['bengali', 'bn'], ['tamil', 'ta'],
+    ['urdu', 'ur'], ['swahili', 'sw'], ['slovak', 'sk'], ['croatian', 'hr'], ['serbian', 'sr'], ['bulgarian', 'bg'],
+    ['lithuanian', 'lt'], ['latvian', 'lv'], ['estonian', 'et'], ['slovenian', 'sl'], ['welsh', 'cy'], ['icelandic', 'is'],
+    ['telugu', 'te'], ['marathi', 'mr'], ['gujarati', 'gu'], ['kannada', 'kn'], ['malayalam', 'ml'], ['punjabi', 'pa'],
+    ['nepali', 'ne'], ['afrikaans', 'af'], ['galician', 'gl'], ['basque', 'eu'], ['armenian', 'hy'], ['georgian', 'ka'],
+    ['kazakh', 'kk'], ['azerbaijani', 'az'], ['albanian', 'sq'], ['bosnian', 'bs'], ['belarusian', 'be'], ['latin', 'la']
+  ] as const
+).map(([id, code]) => ({ id, code, label: id.charAt(0).toUpperCase() + id.slice(1) }))
+
+const QWEN_ASR_LANGUAGES = STT_LANGUAGES.slice(0, 30).map((l) => l.id)
+
 function voice(
   provider: string,
   speaker: string,
@@ -185,12 +204,31 @@ export const PROVIDERS: Provider[] = [
     license: 'Apache-2.0',
     url: 'https://huggingface.co/collections/Qwen/qwen3-asr',
     task: 'asr',
-    tagline: 'Speech recognition helper.',
-    description: 'Writes down what is said in an audio clip. Voiceify uses it to fill in transcripts when you clone a voice, which makes clones more accurate.',
-    strengths: ['Accurate in 10+ languages', 'Small and fast'],
-    limits: ['Optional: only used for voice cloning transcripts'],
+    tagline: 'Accurate transcription in 30 languages.',
+    description:
+      'Speech recognition from Alibaba’s Qwen team. Very accurate on clear speech and strong on Chinese and its dialects. Also fills in transcripts when you clone a voice.',
+    strengths: ['30 languages, including Cantonese', 'Small and fast', 'Excellent on clean recordings'],
+    limits: ['Timestamps are per passage (about 30 s), not per sentence', 'No translation'],
     colors: ['#f97316', '#eab308'],
-    languages: ALL_LANGUAGES.map((l) => l.id),
+    languages: QWEN_ASR_LANGUAGES,
+    features: { builtInVoices: false, styleInstructions: false, voiceCloning: false, voiceDesign: false },
+    params: [],
+    voices: []
+  },
+  {
+    id: 'whisper',
+    name: 'Whisper',
+    vendor: 'OpenAI',
+    license: 'MIT',
+    url: 'https://huggingface.co/openai/whisper-large-v3',
+    task: 'asr',
+    tagline: 'Transcribes 99 languages, with timestamps.',
+    description:
+      'OpenAI’s open-source speech recognition model, trained on 5 million hours of audio. Handles accents, background noise and almost any language, and gives sentence-level timestamps for subtitles.',
+    strengths: ['99 languages', 'Robust to noise and accents', 'Sentence timestamps (subtitles)', 'Large v3 can translate speech into English'],
+    limits: ['Can invent words during long silences', 'Turbo does not translate'],
+    colors: ['#10b981', '#0f766e'],
+    languages: STT_LANGUAGES.map((l) => l.id),
     features: { builtInVoices: false, styleInstructions: false, voiceCloning: false, voiceDesign: false },
     params: [],
     voices: []
@@ -199,6 +237,7 @@ export const PROVIDERS: Provider[] = [
 
 export const PROVIDER_BY_ID = new Map(PROVIDERS.map((p) => [p.id, p]))
 export const TTS_PROVIDERS = PROVIDERS.filter((p) => p.task === 'tts')
+export const ASR_PROVIDERS = PROVIDERS.filter((p) => p.task === 'asr')
 export const DEFAULT_PROVIDER = 'qwen3-tts'
 
 export const PRESET_VOICES: Voice[] = PROVIDERS.flatMap((p) => p.voices)

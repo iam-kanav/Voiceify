@@ -18,7 +18,8 @@ const GATE_COPY: Partial<Record<Capability, { title: string; body: string }>> = 
     title: 'Voice Cloning needs its model',
     body: 'The Voice Cloning model copies a voice from audio. It also speaks the voices you clone or design and save.'
   },
-  transcribe: { title: 'Transcription needs its model', body: 'The Transcription model writes down what is said in an audio clip.' }
+  transcribe: { title: 'Speech to Text needs a model', body: 'A speech recognition model writes down what is said in any audio or video file.' },
+  translate: { title: 'Translation needs Whisper Large', body: 'Whisper Large v3 can write speech in any language as English text. (Whisper Turbo can’t translate.)' }
 }
 
 /** Inline call-to-action shown when the engine or a model for `cap` is missing. */
@@ -57,7 +58,7 @@ export function ModelGate({ cap, compact, provider }: { cap: Capability; compact
   return (
     <Callout
       compact={compact}
-      title={family && family.id !== 'qwen3-tts' ? `Download ${family.name} to use it` : (GATE_COPY[cap]?.title ?? 'This needs a model')}
+      title={family && family.id !== 'qwen3-tts' && cap !== 'translate' ? `Download ${family.name} to use it` : (GATE_COPY[cap]?.title ?? 'This needs a model')}
       body={
         s.status === 'downloading' ? (
           <div className="mt-2 space-y-1.5">
@@ -74,7 +75,7 @@ export function ModelGate({ cap, compact, provider }: { cap: Capability; compact
           <span className="text-danger">Download failed: {s.error}</span>
         ) : (
           <>
-            {family && family.id !== 'qwen3-tts' ? family.description : GATE_COPY[cap]?.body} Recommended for this computer: <b className="font-medium text-ink">{rec.name}</b> ({formatBytes(rec.sizeBytes)}).
+            {family && family.id !== 'qwen3-tts' && cap !== 'translate' ? family.description : GATE_COPY[cap]?.body} Recommended for this computer: <b className="font-medium text-ink">{rec.name}</b> ({formatBytes(rec.sizeBytes)}).
           </>
         )
       }

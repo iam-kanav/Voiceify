@@ -99,7 +99,7 @@ const TOOLS = [
   ['list_voices', 'Built-in, cloned and designed voices'],
   ['design_voice', 'Invent a voice from a description, optionally save it'],
   ['clone_voice', 'Clone a voice from an audio file (auto-transcribed)'],
-  ['transcribe_audio', 'Speech to text for a local audio file'],
+  ['transcribe_audio', 'Speech to text (Qwen3-ASR or Whisper), with subtitles and translation to English'],
   ['play_audio', 'Play a past generation in the app'],
   ['list_history', 'Recent generations with file paths'],
   ['list_models / install_model', 'Inspect and download models'],

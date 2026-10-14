@@ -8,8 +8,11 @@ import type {
   HistoryItem,
   ModelInfo,
   SystemInfo,
+  TranscribeRequest,
+  Transcript,
   Voice
 } from './types'
+import type { TranscriptFormat } from './subtitles'
 
 /**
  * The contract between renderer and main. Every method maps 1:1 to an `ipcMain.handle` channel
@@ -49,9 +52,18 @@ export interface StudioInvoke {
   cancelGeneration(jobId: string): void
 
   listHistory(): HistoryItem[]
+  /** Keep a generation (in "Only what I save" mode). */
+  saveHistory(id: string): HistoryItem
   deleteHistory(id: string): void
   clearHistory(): void
   exportAudio(id: string): string | null
+
+  /** Speech to text. `audio` is 16 kHz mono WAV bytes. */
+  transcribeAudio(req: TranscribeRequest): Transcript
+  listTranscripts(): Transcript[]
+  updateTranscript(id: string, patch: Partial<Pick<Transcript, 'name' | 'text' | 'segments' | 'saved'>>): Transcript
+  deleteTranscript(id: string): void
+  exportTranscript(id: string, format: TranscriptFormat): string | null
   revealInFinder(path: string): void
 
   getApiServerInfo(): ApiServerInfo
@@ -66,6 +78,7 @@ export interface StudioEvents {
   modelsChanged: null
   voicesChanged: null
   historyChanged: null
+  transcriptsChanged: null
   generationChunk: GenerationChunk
   /** Asks the renderer to play a history item (e.g. an agent called text_to_speech with play=true). */
   playHistory: { id: string }
@@ -104,9 +117,15 @@ export const INVOKE_METHODS: (keyof StudioInvoke)[] = [
   'generate',
   'cancelGeneration',
   'listHistory',
+  'saveHistory',
   'deleteHistory',
   'clearHistory',
   'exportAudio',
+  'transcribeAudio',
+  'listTranscripts',
+  'updateTranscript',
+  'deleteTranscript',
+  'exportTranscript',
   'revealInFinder',
   'getApiServerInfo',
   'openExternal',

@@ -68,21 +68,21 @@ export const FEATURES: Feature[] = [
     component: lazy(() => import('@/features/voices'))
   },
   {
+    id: 'speech-to-text',
+    label: 'Speech to Text',
+    icon: Speech,
+    section: 'playground',
+    status: 'ready',
+    description: 'Transcribe any audio or video file, locally',
+    component: lazy(() => import('@/features/speech-to-text'))
+  },
+  {
     id: 'sound-effects',
     label: 'Sound Effects',
     icon: Sparkles,
     section: 'soon',
     status: 'soon',
     description: 'Generate sound effects from text prompts',
-    component: ComingSoon
-  },
-  {
-    id: 'speech-to-text',
-    label: 'Speech to Text',
-    icon: Speech,
-    section: 'soon',
-    status: 'soon',
-    description: 'Transcribe any audio file to text, locally',
     component: ComingSoon
   },
   {

@@ -29,10 +29,11 @@ Text to speech, voice design and voice cloning with multiple open-source AI mode
 - **Private by design.** Your text, recordings and voices never leave your computer. After setup, everything works offline.
 - **Free to run.** No subscriptions or character quotas. Generate as much audio as your hardware allows.
 - **Several open models, one studio.** [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) for expressive speech in 10 languages, voice design and high-fidelity cloning; [Pocket TTS](https://huggingface.co/kyutai/pocket-tts) for tiny (140 MB), very fast English voices and cloning. Pick a model and the interface adapts to what it can do.
+- **Speech to text, too.** Transcribe any audio or video with [Qwen3-ASR](https://huggingface.co/collections/Qwen/qwen3-asr) or OpenAI [Whisper](https://huggingface.co/openai/whisper-large-v3), export subtitles, or translate speech into English.
 - **Voices travel between models.** Voices you clone or design are stored as a short reference recording, so any model that supports your own voices can speak them. Design a voice with Qwen3-TTS, then use it with Pocket TTS.
 - **Pick your trade-off.** Install the model sizes and precisions that suit your machine. Voiceify recommends a set based on your memory and shows the speed it actually measures on your computer.
 - **Built for agents.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Codex, Cursor and other assistants speak, design and clone voices.
-- **Made to grow.** Model providers and features plug into registries, so new model families and tools (sound effects, transcription, …) slot in cleanly.
+- **Made to grow.** Model providers and features plug into registries, so new model families and tools (sound effects, …) slot in cleanly.
 
 ## Contents
 
@@ -88,6 +89,12 @@ Text to speech, voice design and voice cloning with multiple open-source AI mode
       </picture>
     </td>
     <td width="50%" valign="top">
+      <h3>Speech to text</h3>
+      Drop in a voice memo, meeting, podcast or video and get an editable transcript. Choose Qwen3-ASR (30 languages) or Whisper (99 languages, sentence timestamps, translation into English), then copy it or export TXT, SRT or VTT subtitles.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
       <h3>Agents &amp; MCP</h3>
       A built-in MCP server and REST API, with copy-paste setup for Claude Code, Codex, OpenCode, Cursor, Claude Desktop, VS Code, Zed and Gemini CLI.
       <br><br>
@@ -96,7 +103,7 @@ Text to speech, voice design and voice cloning with multiple open-source AI mode
   </tr>
 </table>
 
-Also included: a full generation history saved as WAV, light and dark themes, a first-run setup wizard, and streaming playback with a seekable waveform.
+Also included: a generation history (keep everything automatically, or only what you press Save on), light and dark themes, a first-run setup wizard, and streaming playback with a seekable waveform.
 
 ## Install
 
@@ -138,9 +145,12 @@ Within Qwen3-TTS, each task uses its own model; Voiceify names them by what they
 | **Voice Design** | Qwen3-TTS 1.7B VoiceDesign | Invents a voice from a written description |
 | **Voice Cloning** · Large / Small | Qwen3-TTS 1.7B / 0.6B Base | Copies a voice from audio; also speaks your saved designed voices |
 | **Pocket TTS** | Kyutai Pocket TTS (100M) | Built-in voices and cloning in one tiny model |
-| **Transcription** · Small / Large | Qwen3-ASR 0.6B / 1.7B | Auto-fills transcripts when cloning (optional helper) |
+| **Qwen3-ASR** · Small / Large | Qwen3-ASR 0.6B / 1.7B | Speech to text in 30 languages; also auto-fills transcripts when cloning |
+| **Whisper** · Turbo / Large (optional) | OpenAI Whisper Large v3 Turbo (809M) / Large v3 (1.55B) | Speech to text in 99 languages with sentence timestamps; Large also translates into English |
 
-Every model comes in **full precision** and in compressed **8 / 6 / 5 / 4-bit** versions. Fewer bits mean a smaller download, less memory and faster speech, at some cost to expressiveness. 8-bit sounds almost identical to full precision and is the default recommendation for most machines.
+Every Qwen3-TTS model comes in **full precision** and in compressed **8 / 6 / 5 / 4-bit** versions. Fewer bits mean a smaller download, less memory and faster speech, at some cost to expressiveness. 8-bit sounds almost identical to full precision and is the default recommendation for most machines.
+
+Pocket TTS comes in full precision and 8 / 6 / 4-bit; Whisper in full precision (fp16), 8-bit and 4-bit.
 
 Weights are downloaded from Hugging Face ([mlx-community](https://huggingface.co/mlx-community) conversions of the official releases). Voiceify itself contains no model weights.
 
@@ -160,7 +170,7 @@ Then just ask: *“Read the release notes aloud in the Aiden voice, calm and pro
 | `list_voices` | List built-in, cloned and designed voices |
 | `design_voice` | Invent a voice from a description and optionally save it |
 | `clone_voice` | Clone a voice from an audio file (auto-transcribed) |
-| `transcribe_audio` | Convert speech in a local audio file to text |
+| `transcribe_audio` | Speech to text for a local audio file (Qwen3-ASR or Whisper); plain text, SRT/VTT subtitles or JSON with timestamps; Whisper Large can translate into English |
 | `play_audio`, `list_history` | Replay and browse past generations |
 | `list_models`, `install_model`, `get_status` | Inspect and manage models |
 
@@ -233,7 +243,7 @@ docs/images/       README screenshots
 - [x] Model manager with size and precision options and hardware-aware recommendations
 - [x] Built-in MCP server and REST API
 - [x] Multiple model families (Qwen3-TTS, Pocket TTS) with a model-aware interface
-- [ ] Speech to text page (Qwen3-ASR)
+- [x] Speech to text with Qwen3-ASR and Whisper, with subtitle export
 - [ ] Sound effects generation
 - [ ] More model providers (multilingual Pocket TTS, …)
 - [ ] Windows and Linux support (needs a non-MLX inference backend)
@@ -275,10 +285,11 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and ou
 
 - The [Qwen team](https://github.com/QwenLM) for releasing Qwen3-TTS and Qwen3-ASR under Apache-2.0
 - [Kyutai](https://kyutai.org) for Pocket TTS (CC-BY-4.0)
+- [OpenAI](https://github.com/openai/whisper) for Whisper (MIT)
 - [Apple MLX](https://github.com/ml-explore/mlx) and [mlx-audio](https://github.com/Blaizzy/mlx-audio) for fast on-device inference
 - [mlx-community](https://huggingface.co/mlx-community) for the MLX model conversions
 - Everyone behind the libraries listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 ## License
 
-Voiceify is released under the [Apache License 2.0](LICENSE). Model weights are downloaded separately and keep their own licenses (Qwen3: Apache-2.0, Pocket TTS: CC-BY-4.0); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Voiceify is released under the [Apache License 2.0](LICENSE). Model weights are downloaded separately and keep their own licenses (Qwen3: Apache-2.0, Pocket TTS: CC-BY-4.0, Whisper: MIT); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ApiServerInfo, AppSettings, EngineStatus, HistoryItem, ModelInfo, SystemInfo, Voice } from '@shared/types'
+import type { ApiServerInfo, AppSettings, EngineStatus, HistoryItem, ModelInfo, SystemInfo, Transcript, Voice } from '@shared/types'
 import { studio } from '@/lib/api'
 
 export type Route = { id: string; params?: Record<string, string> }
@@ -17,12 +17,14 @@ interface AppState {
   models: ModelInfo[]
   voices: Voice[]
   history: HistoryItem[]
+  transcripts: Transcript[]
   api: ApiServerInfo | null
   navigate: (id: string, params?: Record<string, string>) => void
   init: () => Promise<void>
   refreshModels: () => Promise<void>
   refreshVoices: () => Promise<void>
   refreshHistory: () => Promise<void>
+  refreshTranscripts: () => Promise<void>
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>
 }
 
@@ -37,6 +39,7 @@ export const useApp = create<AppState>((set, get) => ({
   models: [],
   voices: [],
   history: [],
+  transcripts: [],
   api: null,
 
   navigate: (id, params) => set({ route: { id, params } }),
@@ -54,15 +57,16 @@ export const useApp = create<AppState>((set, get) => ({
       studio.listModels(),
       studio.listVoices(),
       studio.listHistory(),
-      studio.getApiServerInfo()
+      studio.getApiServerInfo(),
+      studio.listTranscripts()
       ])
     } catch (e) {
       initStarted = false
       set({ initError: e instanceof Error ? e.message : String(e) })
       return
     }
-    const [system, settings, engine, models, voices, history, api] = loaded
-    set({ system, settings, engine, models, voices, history, api, ready: true, initError: null })
+    const [system, settings, engine, models, voices, history, api, transcripts] = loaded
+    set({ system, settings, engine, models, voices, history, api, transcripts, ready: true, initError: null })
     applyTheme(settings.theme)
 
     studio.on('engineStatus', (engine) => {
@@ -76,6 +80,7 @@ export const useApp = create<AppState>((set, get) => ({
     studio.on('modelsChanged', () => get().refreshModels())
     studio.on('voicesChanged', () => get().refreshVoices())
     studio.on('historyChanged', () => get().refreshHistory())
+    studio.on('transcriptsChanged', () => get().refreshTranscripts())
     studio.on('apiServer', (api) => set({ api }))
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       const t = get().settings?.theme
@@ -86,6 +91,7 @@ export const useApp = create<AppState>((set, get) => ({
   refreshModels: async () => set({ models: await studio.listModels() }),
   refreshVoices: async () => set({ voices: await studio.listVoices() }),
   refreshHistory: async () => set({ history: await studio.listHistory() }),
+  refreshTranscripts: async () => set({ transcripts: await studio.listTranscripts() }),
   updateSettings: async (patch) => {
     const settings = await studio.updateSettings(patch)
     set({ settings })

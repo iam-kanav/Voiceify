@@ -251,7 +251,7 @@ function FamilyPicker({ families, value, onChange }: { families: (Provider | und
               <span className="relative min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-semibold">{p?.name ?? 'Community & custom'}</span>
-                  {p?.task === 'asr' && <span className="text-[10px] text-ink-3">Helper</span>}
+                  {p?.task === 'asr' && <span className="text-[10px] text-ink-3">Speech to Text</span>}
                 </span>
                 <span className="block truncate text-[11.5px] text-ink-3">{p ? `${p.vendor} · ${p.tagline}` : 'Fine-tunes and your additions'}</span>
                 <span className={cn('mt-1 block text-[11px]', installed ? 'text-success' : 'text-ink-3')}>

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Download, Loader2, Pause, Play, RotateCcw, Square, X } from 'lucide-react'
+import { Loader2, Pause, Play, RotateCcw, Share, Square, X } from 'lucide-react'
 import { usePlayer } from '@/stores/player'
 import { audio } from '@/lib/audio'
 import { formatTime, studio } from '@/lib/api'
@@ -9,12 +9,19 @@ import { IconButton } from './ui'
 import { VoiceAvatar } from './VoiceAvatar'
 import { EqBars, Waveform } from './Waveform'
 import { toast } from './Toast'
+import { SaveButton, useManualSave } from './SaveMode'
+import { useApp } from '@/stores/app'
+
 
 export function PlayerBar() {
   const { clip, status, peaks, toggle, seek, close, stopGeneration } = usePlayer()
   const timeRef = useRef<HTMLSpanElement>(null)
   const durRef = useRef<HTMLSpanElement>(null)
   const visible = !!clip && status !== 'idle'
+  const manual = useManualSave()
+  // The history list is the source of truth for whether this clip has been saved.
+  const entry = useApp((s) => (clip?.item ? s.history.find((h) => h.id === clip.item!.id) : undefined))
+  const canSave = manual && !!clip?.item && !clip.item.ephemeral && clip.item.source === 'app'
 
   useRaf(() => {
     if (timeRef.current) timeRef.current.textContent = formatTime(audio.position())
@@ -114,15 +121,24 @@ export function PlayerBar() {
                   <RotateCcw className="size-4" />
                 </IconButton>
               )}
+              {canSave && (
+                <SaveButton
+                  saved={(entry ?? clip.item!).saved !== false}
+                  onSave={async () => {
+                    await studio.saveHistory(clip.item!.id)
+                    toast.success('Saved to History')
+                  }}
+                />
+              )}
               {clip.item && (
                 <IconButton
-                  label="Save a copy…"
+                  label="Export as WAV…"
                   onClick={async () => {
                     const p = await studio.exportAudio(clip.item!.id)
-                    if (p) toast.success('Saved a copy', p)
+                    if (p) toast.success('Exported', p)
                   }}
                 >
-                  <Download className="size-4" />
+                  <Share className="size-4" />
                 </IconButton>
               )}
               <IconButton label={status === 'streaming' ? 'Stop and close' : 'Close player'} onClick={close}>

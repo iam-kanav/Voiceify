@@ -1,9 +1,11 @@
-import { copyFileSync } from 'node:fs'
+import { copyFileSync, writeFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { StudioInvoke } from '@shared/ipc'
 import { engine } from './engine/client'
 import { history } from './library/history'
+import { transcripts } from './library/transcripts'
+import { formatTranscript } from '@shared/subtitles'
 import { voices } from './library/voices'
 import { models } from './models/manager'
 import { paths } from './paths'
@@ -29,6 +31,10 @@ const handlers: Handlers = {
       if (before.apiPort !== next.apiPort || before.apiEnabled !== next.apiEnabled) await startApiServer()
     }
     if (patch.maxLoadedModels !== undefined) await engine.configure(next.maxLoadedModels).catch(() => undefined)
+    if (patch.saveMode === 'all') {
+      history.saveAll()
+      transcripts.saveAll()
+    }
     return next
   },
 
@@ -74,6 +80,7 @@ const handlers: Handlers = {
   cancelGeneration: (_e, jobId) => studio.cancel(jobId),
 
   listHistory: () => history.list(),
+  saveHistory: (_e, id) => history.save(id),
   deleteHistory: (_e, id) => history.remove(id),
   clearHistory: () => history.clear(),
   exportAudio: async (e, id) => {
@@ -88,6 +95,23 @@ const handlers: Handlers = {
     return res.filePath
   },
   revealInFinder: (_e, p) => shell.showItemInFolder(p),
+
+  transcribeAudio: (_e, req) => studio.transcribeAudio({ ...req, source: 'app' }),
+  listTranscripts: () => transcripts.list(),
+  updateTranscript: (_e, id, patch) => transcripts.update(id, patch),
+  deleteTranscript: (_e, id) => transcripts.remove(id),
+  exportTranscript: async (e, id, format) => {
+    const t = transcripts.get(id)
+    if (!t) return null
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const base = t.name.replace(/\.[^.]+$/, '').replace(/[^\w\- ]+/g, '').trim() || 'Transcript'
+    const names = { txt: 'Text', srt: 'SubRip subtitles', vtt: 'WebVTT subtitles' }
+    const opts = { defaultPath: `${base}.${format}`, filters: [{ name: names[format], extensions: [format] }] }
+    const res = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+    if (res.canceled || !res.filePath) return null
+    writeFileSync(res.filePath, formatTranscript(t.text, t.segments, format), 'utf8')
+    return res.filePath
+  },
 
   getApiServerInfo: () => getApiInfo(),
   openExternal: (_e, url) => {

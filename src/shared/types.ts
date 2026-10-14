@@ -9,7 +9,8 @@ export type Capability =
   | 'voice-design' // create a voice from a text description
   | 'voice-clone' // clone from reference audio
   | 'emotion-tags' // inline [Happy] style tags (fine-tunes)
-  | 'transcribe' // speech → text (helper for cloning)
+  | 'transcribe' // speech → text
+  | 'translate' // speech in any language → English text
 
 export type Quant = '4bit' | '5bit' | '6bit' | '8bit' | 'bf16'
 
@@ -218,6 +219,49 @@ export interface HistoryItem {
   source: 'app' | 'mcp' | 'api'
   /** Designed-voice previews are kept out of the main history list. */
   ephemeral?: boolean
+  /** false = not kept yet ("Only what I save" mode); removed when Voiceify quits. Missing = kept. */
+  saved?: boolean
+}
+
+// ---------- Speech to text ----------
+
+export interface TranscriptSegment {
+  start: number
+  end: number
+  text: string
+}
+
+export interface TranscribeRequest {
+  /** 16 kHz mono WAV bytes, or a path to a local audio file. */
+  audio: Uint8Array | string
+  /** File name or "Recording", for display. */
+  name?: string
+  /** Model family ("qwen3-asr", "whisper") or a specific variant id. */
+  provider?: string
+  modelId?: string
+  /** "auto" or a language id from STT_LANGUAGES. */
+  language?: string
+  /** Whisper can translate speech into English text. */
+  task?: 'transcribe' | 'translate'
+  source?: 'app' | 'mcp' | 'api'
+}
+
+export interface Transcript {
+  id: string
+  name: string
+  text: string
+  segments: TranscriptSegment[]
+  /** Detected (or chosen) language, as reported by the model. */
+  language?: string
+  task: 'transcribe' | 'translate'
+  provider: string
+  modelId: string
+  durationSec: number
+  processingSec: number
+  createdAt: number
+  source: 'app' | 'mcp' | 'api'
+  /** Same meaning as HistoryItem.saved. */
+  saved?: boolean
 }
 
 export interface GenerationChunk {
@@ -244,6 +288,12 @@ export interface AppSettings {
   defaultProvider: string
   onboardingComplete: boolean
   defaultGeneration: GenerationSettings
+  /**
+   * What happens to things you generate: 'all' keeps everything in History; 'manual' keeps only
+   * what you press Save on (the rest is removed when Voiceify quits). Unset until the first
+   * generation asks.
+   */
+  saveMode?: 'all' | 'manual'
 }
 
 export interface ApiServerInfo {

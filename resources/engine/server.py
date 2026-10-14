@@ -352,16 +352,62 @@ def write_wav(path: str, audio, sr: int) -> None:
 
 
 def handle_asr_transcribe(job: Job) -> Dict[str, Any]:
+    """Speech → text. Returns the full text plus timestamped segments (for subtitles).
+
+    `language` is what the model expects: a Whisper ISO code ("en") or a Qwen3-ASR language
+    name ("English"); omitted = auto-detect. `task` = "translate" makes Whisper write English.
+    """
     p = job.params
     model = CACHE.get(p["model_path"], "asr")
-    kwargs: Dict[str, Any] = {}
-    if p.get("language") and p["language"] != "auto":
-        kwargs["language"] = p["language"].capitalize()
-    out = model.generate(p["audio_path"], **kwargs)
-    text = getattr(out, "text", None)
-    if text is None and isinstance(out, list) and out:
-        text = getattr(out[0], "text", "")
-    return {"text": (text or "").strip()}
+    language = p.get("language") or None
+    if language == "auto":
+        language = None
+    t0 = time.time()
+
+    from mlx_audio.stt.utils import load_audio
+
+    audio = load_audio(p["audio_path"])
+    duration = int(audio.shape[0]) / 16000
+
+    if model_type(p["model_path"]) == "whisper":
+        out = model.generate(
+            audio,
+            language=language,
+            task=p.get("task") or "transcribe",
+            verbose=None,
+            # Stops Whisper from inventing text during long silences.
+            hallucination_silence_threshold=2.0,
+            word_timestamps=True,
+        )
+    else:
+        out = model.generate(
+            audio,
+            language=language,
+            # Passages of ~30 s (cut at quiet moments) give usable timestamps on long files.
+            chunk_duration=30.0,
+            max_tokens=int(8192 + duration * 20),
+        )
+    if isinstance(out, list):
+        out = out[0] if out else None
+
+    segments = []
+    for seg in getattr(out, "segments", None) or []:
+        text = str(seg.get("text", "")).strip()
+        if text:
+            segments.append({"start": float(seg.get("start", 0)), "end": float(seg.get("end", 0)), "text": text})
+    text = (getattr(out, "text", "") or "").strip()
+    if not text and segments:
+        text = " ".join(s["text"] for s in segments)
+    detected = getattr(out, "language", None)
+    if isinstance(detected, list):
+        detected = detected[0] if detected else None
+    return {
+        "text": text,
+        "segments": segments,
+        "language": detected,
+        "duration": duration,
+        "processing_time": time.time() - t0,
+    }
 
 
 def handle_convert(job: Job) -> Dict[str, Any]:

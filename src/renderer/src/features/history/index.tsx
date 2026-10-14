@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Bot, Download, FolderOpen, History as HistoryIcon, Pause, Play, Repeat2, Search, Trash2 } from 'lucide-react'
+import { Bot, FolderOpen, History as HistoryIcon, Pause, Play, Repeat2, Search, Share, Trash2 } from 'lucide-react'
 import type { HistoryItem } from '@shared/types'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge, Button, EmptyState, IconButton, Input } from '@/components/ui'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { Modal } from '@/components/Modal'
 import { toast } from '@/components/Toast'
+import { SaveButton, useManualSave } from '@/components/SaveMode'
 import { useApp } from '@/stores/app'
 import { useTts } from '@/stores/tts'
 import { playHistoryItem, usePlayer } from '@/stores/player'
@@ -21,6 +22,8 @@ export default function History() {
   const [q, setQ] = useState('')
   const [confirmClear, setConfirmClear] = useState(false)
   const pad = usePlayerPadding()
+  const manual = useManualSave()
+  const unsaved = history.filter((h) => h.saved === false).length
 
   const groups = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -53,7 +56,11 @@ export default function History() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title="History"
-        subtitle={`${history.length} generation${history.length === 1 ? '' : 's'} · stored locally as WAV`}
+        subtitle={
+          manual
+            ? `${history.length - unsaved} saved${unsaved ? ` · ${unsaved} not saved yet (removed when you quit)` : ''}`
+            : `${history.length} generation${history.length === 1 ? '' : 's'} · stored on this computer`
+        }
         right={
           history.length > 0 && (
             <Button variant="ghost" size="sm" icon={<Trash2 className="size-4" />} onClick={() => setConfirmClear(true)}>
@@ -153,6 +160,7 @@ function Row({ item, colors, modelName, onReuse }: { item: HistoryItem; colors?:
           <span className="font-medium text-ink-2">{item.voiceName}</span>·<span>{modelName}</span>·
           <span>{formatTime(item.durationSec)}</span>·
           <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+          {item.saved === false && <Badge tone="amber">Not saved</Badge>}
           {item.source !== 'app' && (
             <Badge tone="violet">
               <Bot className="size-3" />
@@ -161,6 +169,7 @@ function Row({ item, colors, modelName, onReuse }: { item: HistoryItem; colors?:
           )}
         </div>
       </div>
+      {item.saved === false && <SaveButton saved={false} onSave={() => studio.saveHistory(item.id)} />}
       <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <IconButton label="Open in Text to Speech" onClick={onReuse}>
           <Repeat2 className="size-4" />
@@ -169,13 +178,13 @@ function Row({ item, colors, modelName, onReuse }: { item: HistoryItem; colors?:
           <FolderOpen className="size-4" />
         </IconButton>
         <IconButton
-          label="Save a copy…"
+          label="Export as WAV…"
           onClick={async () => {
             const p = await studio.exportAudio(item.id)
-            if (p) toast.success('Saved a copy', p)
+            if (p) toast.success('Exported', p)
           }}
         >
-          <Download className="size-4" />
+          <Share className="size-4" />
         </IconButton>
         <IconButton label="Delete" onClick={() => studio.deleteHistory(item.id)}>
           <Trash2 className="size-4" />

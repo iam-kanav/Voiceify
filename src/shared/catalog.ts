@@ -49,9 +49,9 @@ export const ROLES: Record<string, { label: string; blurb: string; why: string }
     why: 'Needed for Create Voice → Clone, and to speak with any voice you cloned or designed and saved.'
   },
   transcription: {
-    label: 'Transcription',
-    blurb: 'Writes down what is said in an audio clip.',
-    why: 'Optional helper: fills in the transcript when you clone a voice, which makes clones noticeably more accurate.'
+    label: 'Speech to Text',
+    blurb: 'Writes down what is said in any audio or video file.',
+    why: 'Powers Speech to Text, and fills in the transcript when you clone a voice, which makes clones noticeably more accurate.'
   },
   'voices-and-cloning': {
     label: 'Voices & Cloning',
@@ -232,10 +232,10 @@ const helpers: ModelVariant[] = [
   {
     id: 'qwen3-asr-0.6b-8bit',
     provider: 'qwen3-asr',
-    name: 'Transcription · Small · 8-bit',
-    family: 'Transcription · Small',
+    name: 'Qwen3-ASR · Small · 8-bit',
+    family: 'Qwen3-ASR · Small',
     familyId: 'qwen3-asr-0.6b',
-    role: 'Transcription',
+    role: 'Speech to Text',
     roleId: 'transcription',
     sizeLabel: 'Small',
     precisionLabel: '8-bit',
@@ -256,10 +256,10 @@ const helpers: ModelVariant[] = [
   {
     id: 'qwen3-asr-1.7b-8bit',
     provider: 'qwen3-asr',
-    name: 'Transcription · Large · 8-bit',
-    family: 'Transcription · Large',
+    name: 'Qwen3-ASR · Large · 8-bit',
+    family: 'Qwen3-ASR · Large',
     familyId: 'qwen3-asr-1.7b',
-    role: 'Transcription',
+    role: 'Speech to Text',
     roleId: 'transcription',
     sizeLabel: 'Large',
     precisionLabel: '8-bit',
@@ -278,6 +278,76 @@ const helpers: ModelVariant[] = [
     tags: ['1.7B']
   }
 ]
+
+// Whisper (OpenAI). The MLX weights ship without the Hugging Face tokenizer files mlx-audio needs,
+// so those come from OpenAI's original repo (pinned) and are saved next to the weights.
+const WHISPER_PROCESSOR: [string, number][] = [
+  ['added_tokens.json', 34648],
+  ['generation_config.json', 0],
+  ['merges.txt', 493869],
+  ['normalizer.json', 52666],
+  ['preprocessor_config.json', 340],
+  ['special_tokens_map.json', 0],
+  ['tokenizer.json', 0],
+  ['tokenizer_config.json', 282843],
+  ['vocab.json', 1036558]
+]
+const WHISPER_SOURCES = {
+  turbo: { repo: 'openai/whisper-large-v3-turbo', revision: '41f01f3fe87f28c78e2fbf8b568835947dd65ed9', sizes: { 'generation_config.json': 3772, 'special_tokens_map.json': 2186, 'tokenizer.json': 2710337 } },
+  large: { repo: 'openai/whisper-large-v3', revision: '06f233fe06e710322aca913c1bc4249a0d71fce1', sizes: { 'generation_config.json': 3903, 'special_tokens_map.json': 2072, 'tokenizer.json': 2480617 } }
+} as const
+
+function whisperExtras(kind: keyof typeof WHISPER_SOURCES): ExtraFile[] {
+  const src = WHISPER_SOURCES[kind]
+  return WHISPER_PROCESSOR.map(([path, size]) => ({
+    repo: src.repo,
+    revision: src.revision,
+    path,
+    size: (src.sizes as Record<string, number>)[path] ?? size
+  }))
+}
+
+const WHISPER: { kind: 'turbo' | 'large'; q: Quant; size: number; quality: number; speed: number; summary: string }[] = [
+  { kind: 'turbo', q: 'bf16', size: 1614796978, quality: 4.6, speed: 4, summary: 'Uncompressed Turbo' },
+  { kind: 'turbo', q: '8bit', size: 864478595, quality: 4.5, speed: 4.5, summary: 'Best balance · fast and accurate' },
+  { kind: 'turbo', q: '4bit', size: 464282421, quality: 4, speed: 5, summary: 'Smallest · slightly less accurate' },
+  { kind: 'large', q: 'bf16', size: 3084094947, quality: 5, speed: 2.5, summary: 'Most accurate · slowest' },
+  { kind: 'large', q: '8bit', size: 1645709735, quality: 4.9, speed: 3, summary: 'Near-identical accuracy, smaller' },
+  { kind: 'large', q: '4bit', size: 878510421, quality: 4.3, speed: 3.5, summary: 'Smaller · some accuracy loss' }
+]
+
+const whisper: ModelVariant[] = WHISPER.map(({ kind, q, size, quality, speed, summary }) => {
+  const extras = whisperExtras(kind)
+  const turbo = kind === 'turbo'
+  const label = turbo ? 'Turbo' : 'Large'
+  const repoQuant = q === 'bf16' ? 'fp16' : q
+  return {
+    id: `whisper-large-v3${turbo ? '-turbo' : ''}-${repoQuant}`,
+    provider: 'whisper',
+    name: `Whisper ${label} · ${PRECISION_INFO[q].label}`,
+    family: `Whisper ${label}`,
+    familyId: turbo ? 'whisper-large-v3-turbo' : 'whisper-large-v3',
+    role: ROLES.transcription.label,
+    roleId: 'transcription',
+    sizeLabel: label,
+    precisionLabel: PRECISION_INFO[q].label,
+    summary,
+    officialName: turbo ? 'OpenAI Whisper Large v3 Turbo (809M)' : 'OpenAI Whisper Large v3 (1.55B)',
+    task: 'asr',
+    capabilities: turbo ? ['transcribe'] : ['transcribe', 'translate'],
+    params: turbo ? '0.8B' : '1.55B',
+    quant: q,
+    source: { type: 'hf-mlx', repo: `mlx-community/whisper-large-v3${turbo ? '-turbo' : ''}-${repoQuant}`, extras },
+    sizeBytes: size + extras.reduce((n, e) => n + e.size, 0),
+    quality,
+    speed,
+    minRamGB: Math.ceil((size / 1e9) * 1.6 + 2),
+    description: turbo
+      ? 'A distilled Large v3: about as accurate, several times faster. Transcription only.'
+      : 'The full Large v3 model. Most accurate, and can translate speech into English.',
+    tags: [turbo ? '809M' : '1.55B']
+  }
+})
 
 const community: ModelVariant[] = [
   {
@@ -308,7 +378,7 @@ const community: ModelVariant[] = [
   }
 ]
 
-export const CATALOG: ModelVariant[] = [...official, ...pocket, ...helpers, ...community]
+export const CATALOG: ModelVariant[] = [...official, ...pocket, ...helpers, ...whisper, ...community]
 
 export const CATALOG_BY_ID = new Map(CATALOG.map((m) => [m.id, m]))
 
@@ -343,7 +413,7 @@ export function recommendationsFor(sys: SystemInfo): Map<string, string> {
     pick('qwen3-tts-1.7b-base', 'bf16', why)
     pick('qwen3-tts-1.7b-voicedesign', 'bf16', why)
   }
-  rec.set('qwen3-asr-0.6b-8bit', 'Small and fast; fills in clone transcripts')
+  rec.set('qwen3-asr-0.6b-8bit', 'Small and fast; also fills in clone transcripts')
   rec.set('pocket-tts-8bit', mem <= 8 ? `Fast and tiny — ideal for ${mem} GB of memory` : 'Tiny (140 MB) and very fast — great for drafts and long reads')
   return rec
 }

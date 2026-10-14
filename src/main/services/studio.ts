@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Capability, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Provider, Voice } from '@shared/types'
-import { DEFAULT_PROVIDER, paramsFor, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
+import type { Capability, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Provider, TranscribeRequest, Transcript, Voice } from '@shared/types'
+import { ASR_PROVIDERS, DEFAULT_PROVIDER, paramsFor, PROVIDER_BY_ID, providersForVoice, STT_LANGUAGES, TTS_PROVIDERS } from '@shared/providers'
 import { DEFAULT_GENERATION } from '@shared/voices'
 import { engine } from '../engine/client'
 import { bus } from '../events'
 import { history } from '../library/history'
+import { transcripts } from '../library/transcripts'
 import { voices } from '../library/voices'
 import { models } from '../models/manager'
 import { paths } from '../paths'
@@ -24,7 +25,8 @@ const CAP_NEEDS: Record<Capability, { task: string; model: string }> = {
   'voice-design': { task: 'design voices', model: 'Voice Design' },
   'voice-clone': { task: 'clone voices or use your saved voices', model: 'Voice Cloning' },
   'emotion-tags': { task: 'use emotion tags', model: 'Emotion Tags' },
-  transcribe: { task: 'transcribe audio', model: 'Transcription' }
+  transcribe: { task: 'transcribe audio', model: 'Speech to Text' },
+  translate: { task: 'translate speech into English', model: 'Whisper Large' }
 }
 
 export class StudioError extends Error {
@@ -57,7 +59,10 @@ function requireModel(cap: Capability, preferredId?: string, provider?: Provider
   }
   const model = models.resolve(cap, preferredId, provider?.id)
   if (!model) {
-    const what = provider && provider.id !== 'qwen3-tts' ? provider.name : `a ${CAP_NEEDS[cap].model}`
+    if (cap === 'translate') {
+      throw new StudioError('To translate speech into English, download Whisper Large on the Models page (Whisper Turbo can’t translate).', 'no-model')
+    }
+    const what = provider && provider.id !== 'qwen3-tts' ? `a ${provider.name}` : `a ${CAP_NEEDS[cap].model}`
     throw new StudioError(`To ${CAP_NEEDS[cap].task}${provider ? ` with ${provider.name}` : ''}, download ${what} model on the Models page.`, 'no-model')
   }
   return model
@@ -240,6 +245,7 @@ export async function generate(req: GenerateRequest, opts: GenerateOptions = {})
     source: req.source ?? 'app',
     ephemeral: opts.ephemeral ?? (p.mode === 'design' && !req.voiceId)
   }
+  if (!item.ephemeral && keepOnlySaved(item.source)) item.saved = false
   history.add(item)
   return item
 }
@@ -248,6 +254,84 @@ export function cancel(jobId: string) {
   engine.cancel(jobId)
 }
 
+/**
+ * In "Only what I save" mode, things made in the app wait for the user to press Save. Agent and API
+ * results are always kept: the app that asked for them may still need the file.
+ */
+function keepOnlySaved(source: 'app' | 'mcp' | 'api') {
+  return source === 'app' && getSettings().saveMode === 'manual'
+}
+
+function languageLabel(lang: string | undefined | null) {
+  if (!lang) return undefined
+  const l = String(lang).toLowerCase()
+  return STT_LANGUAGES.find((x) => x.id === l || x.code === l)?.label ?? String(lang)
+}
+
+/** Speech to text: picks the model, runs it, and records the result. */
+export async function transcribeAudio(req: TranscribeRequest): Promise<Transcript> {
+  const ref = parseModelRef(req.modelId)
+  const providerId = req.provider ?? ref.provider
+  const provider = providerId ? PROVIDER_BY_ID.get(providerId) : undefined
+  if (providerId && provider?.task !== 'asr') throw new StudioError(`“${providerId}” is not a speech-to-text model.`)
+  const task = req.task === 'translate' ? 'translate' : 'transcribe'
+  const model =
+    task === 'translate'
+      ? requireModel('translate', ref.modelId, provider ?? PROVIDER_BY_ID.get('whisper'))
+      : requireModel('transcribe', ref.modelId, provider)
+  const family = PROVIDER_BY_ID.get(model.provider)!
+  const lang = req.language && req.language !== 'auto' ? STT_LANGUAGES.find((l) => l.id === req.language || l.code === req.language) : undefined
+  if (req.language && req.language !== 'auto' && !lang) throw new StudioError(`Unknown language “${req.language}”.`)
+  if (lang && !family.languages.includes(lang.id)) {
+    throw new StudioError(`${family.name} doesn’t support ${lang.label}. Pick Auto-detect or another model.`)
+  }
+
+  let file = typeof req.audio === 'string' ? req.audio : ''
+  let tmp = ''
+  if (typeof req.audio !== 'string') {
+    tmp = join(paths.tmp, `asr-${randomUUID()}.wav`)
+    writeFileSync(tmp, req.audio)
+    file = tmp
+  }
+  const modelPath = models.installedPath(model.id)!
+  try {
+    const res = await engine.request<{
+      text: string
+      segments: { start: number; end: number; text: string }[]
+      language?: string | null
+      duration: number
+      processing_time: number
+    }>('asr.transcribe', {
+      model_path: modelPath,
+      audio_path: file,
+      language: lang ? (family.id === 'whisper' ? lang.code : lang.label) : undefined,
+      task
+    })
+    engine.markLoaded(modelPath)
+    const source = req.source ?? 'app'
+    const t: Transcript = {
+      id: `stt_${Date.now().toString(36)}_${randomUUID().slice(0, 6)}`,
+      name: req.name?.trim() || (typeof req.audio === 'string' ? req.audio.split(/[\\/]/).pop()! : 'Audio'),
+      text: res.text,
+      segments: res.segments ?? [],
+      language: languageLabel(res.language) ?? lang?.label,
+      task,
+      provider: family.id,
+      modelId: model.id,
+      durationSec: res.duration,
+      processingSec: res.processing_time,
+      createdAt: Date.now(),
+      source,
+      ...(keepOnlySaved(source) ? { saved: false } : {})
+    }
+    transcripts.add(t)
+    return t
+  } finally {
+    if (tmp) rmSync(tmp, { force: true })
+  }
+}
+
+/** Plain transcription for voice cloning (not recorded in the transcript list). */
 export async function transcribe(audio: Uint8Array | string, language?: string): Promise<string> {
   const model = requireModel('transcribe')
   let file = typeof audio === 'string' ? audio : ''
@@ -257,11 +341,12 @@ export async function transcribe(audio: Uint8Array | string, language?: string):
     writeFileSync(tmp, audio)
     file = tmp
   }
+  const lang = language && language !== 'auto' ? STT_LANGUAGES.find((l) => l.id === language) : undefined
   try {
     const res = await engine.request<{ text: string }>('asr.transcribe', {
       model_path: models.installedPath(model.id),
       audio_path: file,
-      language
+      language: lang ? (model.provider === 'whisper' ? lang.code : lang.label) : undefined
     })
     engine.markLoaded(models.installedPath(model.id)!)
     return res.text
@@ -344,6 +429,12 @@ export function status() {
         voiceDesign: has(p.id, 'voice-design')
       }
     })),
-    transcription: installed.some((m) => m.capabilities.includes('transcribe'))
+    transcription: ASR_PROVIDERS.map((p) => ({
+      id: p.id,
+      name: p.name,
+      tagline: p.tagline,
+      installed: installed.some((m) => m.provider === p.id),
+      can: { transcribe: has(p.id, 'transcribe'), translate: has(p.id, 'translate') }
+    }))
   }
 }

@@ -7,7 +7,8 @@ import { history } from '../library/history'
 import { voices } from '../library/voices'
 import { models } from '../models/manager'
 import * as studio from '../services/studio'
-import { providersForVoice } from '@shared/providers'
+import { providersForVoice, STT_LANGUAGES } from '@shared/providers'
+import { formatTranscript } from '@shared/subtitles'
 
 /**
  * The built-in MCP server. Any MCP client (Claude Code, Codex, OpenCode, Cursor, Zed, Claude
@@ -238,12 +239,30 @@ export function createMcpServer(baseUrl: string) {
     'transcribe_audio',
     {
       title: 'Transcribe audio',
-      description: 'Speech to text for a local audio file (requires a transcription model).',
-      inputSchema: { audio_path: z.string(), language: z.enum(LANG_IDS).optional() }
+      description:
+        'Speech to text for a local audio file, run on this computer. Uses Qwen3-ASR or Whisper (whichever is installed, or the one you name). ' +
+        'Whisper Large v3 can also translate speech in any language into English (task="translate"). ' +
+        'format="srt"/"vtt" returns subtitles with timestamps; "json" returns text, segments and the detected language.',
+      inputSchema: {
+        audio_path: z.string().describe('Absolute path to an audio file (WAV, MP3, FLAC, M4A…)'),
+        model: z.string().optional().describe('"qwen3-asr", "whisper", or a model id from list_models'),
+        language: z
+          .enum(['auto', ...STT_LANGUAGES.map((l) => l.id)] as [string, ...string[]])
+          .optional()
+          .describe('Spoken language; omit to auto-detect'),
+        task: z.enum(['transcribe', 'translate']).optional(),
+        format: z.enum(['text', 'srt', 'vtt', 'json']).optional()
+      }
     },
-    async ({ audio_path, language }) => {
+    async ({ audio_path, model, language, task, format }) => {
       try {
-        return text(await studio.transcribe(audio_path, language))
+        if (!existsSync(audio_path)) return fail(`File not found: ${audio_path}`)
+        const t = await studio.transcribeAudio({ audio: audio_path, modelId: model, language, task, source: 'mcp' })
+        if (format === 'json') {
+          return text(JSON.stringify({ text: t.text, language: t.language, duration_sec: +t.durationSec.toFixed(2), model: t.modelId, segments: t.segments }, null, 2))
+        }
+        if (format === 'srt' || format === 'vtt') return text(formatTranscript(t.text, t.segments, format))
+        return text(t.text)
       } catch (e) {
         return fail(e)
       }

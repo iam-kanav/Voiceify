@@ -7,6 +7,7 @@ import { registerIpc } from './ipc'
 import { engine } from './engine/client'
 import { models } from './models/manager'
 import { history } from './library/history'
+import { transcripts } from './library/transcripts'
 import { startApiServer, stopApiServer } from './api/server'
 import { getSettings } from './settings'
 import { JsonStore } from './store'
@@ -130,6 +131,7 @@ if (!gotLock) {
     ensureDirs()
     models.init()
     history.init()
+    transcripts.init()
     if (!app.isPackaged) app.dock?.setIcon(join(paths.resources, 'icon.png'))
     buildMenu()
     registerMediaProtocol()
@@ -154,6 +156,8 @@ if (!gotLock) {
     if (quitting) return
     quitting = true
     e.preventDefault()
+    history.dropUnsaved()
+    transcripts.dropUnsaved()
     JsonStore.flushAll()
     Promise.allSettled([engine.stop(), stopApiServer()]).finally(() => app.exit(0))
   })

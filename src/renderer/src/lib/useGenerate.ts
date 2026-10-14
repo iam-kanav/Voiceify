@@ -3,6 +3,7 @@ import type { GenerateRequest, HistoryItem } from '@shared/types'
 import { studio, uid } from './api'
 import { usePlayer } from '@/stores/player'
 import { errorMessage, toast } from '@/components/Toast'
+import { ensureSaveMode } from '@/components/SaveMode'
 
 /** Streamed generation wired to the global player. */
 export function useGenerate() {
@@ -11,6 +12,9 @@ export function useGenerate() {
 
   const run = useCallback(
     async (req: GenerateRequest, meta: { title: string; colors?: [string, string] }): Promise<HistoryItem | null> => {
+      // Voice-design takes are temporary anyway; everything else asks once how to keep results.
+      const preview = !!req.designPrompt && !req.voiceId
+      if (!preview && !(await ensureSaveMode())) return null
       const jobId = uid()
       job.current = jobId
       setBusy(true)

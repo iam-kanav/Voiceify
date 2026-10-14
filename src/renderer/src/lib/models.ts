@@ -6,7 +6,8 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   'voice-design': 'Voice design',
   'voice-clone': 'Voice cloning',
   'emotion-tags': 'Emotion tags',
-  transcribe: 'Transcription'
+  transcribe: 'Speech to text',
+  translate: 'Translate to English'
 }
 
 export const isInstalled = (m: ModelInfo) => m.install.status === 'installed'

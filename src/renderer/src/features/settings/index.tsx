@@ -4,6 +4,7 @@ import { ChevronDown, FolderOpen, Monitor, Moon, RefreshCw, Sun, Wrench } from '
 import { PageHeader } from '@/components/PageHeader'
 import { Badge, Button, Card, Tabs } from '@/components/ui'
 import { InfoTip } from '@/components/InfoTip'
+import { SAVE_MODES } from '@/components/SaveMode'
 import { useApp } from '@/stores/app'
 import { cn, studio } from '@/lib/api'
 import { usePlayerPadding } from '@/lib/useGenerate'
@@ -48,6 +49,21 @@ export default function Settings() {
                 { id: 'dark', label: <span className="flex items-center gap-1.5"><Moon className="size-3.5" />Dark</span> },
                 { id: 'system', label: <span className="flex items-center gap-1.5"><Monitor className="size-3.5" />System</span> }
               ]}
+            />
+          </Row>
+
+          <Row
+            title="Keeping what you generate"
+            body={
+              (SAVE_MODES.find((m) => m.id === settings.saveMode) ?? SAVE_MODES[0]).body +
+              ' Results made by AI apps and the local API are always kept.'
+            }
+          >
+            <Tabs
+              id="save-mode"
+              value={settings.saveMode ?? 'all'}
+              onChange={(saveMode) => update({ saveMode })}
+              tabs={SAVE_MODES.map((m) => ({ id: m.id, label: m.title }))}
             />
           </Row>
 
