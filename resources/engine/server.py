@@ -105,6 +105,10 @@ class ModelCache:
             from mlx_audio.stt.utils import load_model as load_stt
 
             model = load_stt(path)
+        elif kind == "sfx":
+            from sfx import StableAudioSFX
+
+            model = StableAudioSFX(path)
         else:
             from mlx_audio.tts.utils import load_model as load_tts
 
@@ -507,6 +511,55 @@ def handle_asr_transcribe(job: Job) -> Dict[str, Any]:
     }
 
 
+def handle_sfx_generate(job: Job) -> Dict[str, Any]:
+    """Text → sound effect(s). Writes one stereo WAV per variation to `out_paths`."""
+    from sfx import Cancelled
+
+    p = job.params
+    model = CACHE.get(p["model_path"], "sfx")
+    out_paths = list(p["out_paths"])
+
+    def on_step(i: int, total: int) -> None:
+        if job.cancelled:
+            raise Cancelled()
+        job.emit("progress", {"step": i, "total": total})
+
+    try:
+        mx().reset_peak_memory()
+    except Exception:
+        pass
+    t0 = time.time()
+    try:
+        clips = model.generate(
+            prompt=p["prompt"],
+            seconds=float(p.get("seconds", 5.0)),
+            count=len(out_paths),
+            steps=int(p.get("steps", 8)),
+            seed=int(p.get("seed", 0)),
+            cfg=float(p.get("cfg", 1.0)),
+            negative_prompt=p.get("negative_prompt") or None,
+            on_step=on_step,
+        )
+    except Cancelled:
+        return {"cancelled": True}
+    for path, audio in zip(out_paths, clips):
+        write_wav(path, audio.T, model.sample_rate)
+    elapsed = time.time() - t0
+    duration = clips[0].shape[-1] / model.sample_rate
+    peak = 0.0
+    try:
+        peak = mx().get_peak_memory() / 1e9
+    except Exception:
+        pass
+    return {
+        "paths": out_paths,
+        "duration": duration,
+        "sample_rate": model.sample_rate,
+        "processing_time": elapsed,
+        "peak_memory_gb": peak,
+    }
+
+
 def handle_convert(job: Job) -> Dict[str, Any]:
     """Convert a PyTorch Qwen3-TTS checkpoint (e.g. a community fine-tune) to MLX."""
     from mlx_audio.convert import convert
@@ -545,6 +598,7 @@ def handle_warmup(job: Job) -> Dict[str, Any]:
 HANDLERS: Dict[str, Callable[[Job], Dict[str, Any]]] = {
     "tts.generate": handle_tts_generate,
     "asr.transcribe": handle_asr_transcribe,
+    "sfx.generate": handle_sfx_generate,
     "voice.fingerprint": handle_voice_fingerprint,
     "models.convert": handle_convert,
     "models.load": handle_load,

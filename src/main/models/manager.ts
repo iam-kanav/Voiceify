@@ -172,6 +172,7 @@ class ModelManager {
 
     try {
       if (model.source.type === 'hf-tensors') await this.downloadTensors(id, model.source, downloadDir, ctrl.signal)
+      else if (model.source.type === 'hf-files') await this.downloadSelected(id, model.source, downloadDir, ctrl.signal)
       else await this.downloadRepo(id, model.source.repo, downloadDir, ctrl.signal, model.source.extras)
       if (model.source.type === 'hf-convert') {
         this.setTransient(id, { status: 'converting', message: 'Converting to MLX (this can take a few minutes)…' })
@@ -387,7 +388,6 @@ class ModelManager {
   }
 
   private async downloadRepo(id: string, repo: string, dir: string, signal: AbortSignal, extras: ExtraFile[] = []) {
-    const fileUrl = (r: string, path: string, rev = 'main') => `${HF}/${r}/resolve/${rev}/${path.split('/').map(encodeURIComponent).join('/')}`
     const listed = await this.listFiles(repo)
     const files = [
       ...listed.map((f) => ({ ...f, url: fileUrl(repo, f.path) })),
@@ -396,6 +396,20 @@ class ModelManager {
         .filter((e) => !listed.some((f) => f.path === (e.saveAs ?? e.path)))
         .map((e) => ({ path: e.saveAs ?? e.path, size: e.size, url: fileUrl(e.repo, e.path, e.revision) }))
     ]
+    await this.downloadFiles(id, files, dir, signal)
+  }
+
+  /** Only the listed files of a repo (pinned revision), then the config.json that marks the install. */
+  private async downloadSelected(id: string, src: Extract<ModelVariant['source'], { type: 'hf-files' }>, dir: string, signal: AbortSignal) {
+    const files = [
+      ...src.files.map((f) => ({ ...f, url: fileUrl(src.repo, f.path, src.revision) })),
+      ...(src.extras ?? []).map((e) => ({ path: e.saveAs ?? e.path, size: e.size, url: fileUrl(e.repo, e.path, e.revision) }))
+    ]
+    await this.downloadFiles(id, files, dir, signal)
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ ...src.config, source: { repo: src.repo, revision: src.revision } }, null, 2))
+  }
+
+  private async downloadFiles(id: string, files: { path: string; size: number; url: string }[], dir: string, signal: AbortSignal) {
     const total = files.reduce((n, f) => n + f.size, 0)
     let received = 0
     let lastEmit = 0
@@ -434,6 +448,10 @@ class ModelManager {
     }
     emit('', true)
   }
+}
+
+function fileUrl(repo: string, path: string, rev = 'main') {
+  return `${HF}/${repo}/resolve/${rev}/${path.split('/').map(encodeURIComponent).join('/')}`
 }
 
 const CHUNK = 16 * 1024 * 1024

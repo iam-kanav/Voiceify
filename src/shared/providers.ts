@@ -232,12 +232,35 @@ export const PROVIDERS: Provider[] = [
     features: { builtInVoices: false, styleInstructions: false, voiceCloning: false, voiceDesign: false },
     params: [],
     voices: []
+  },
+  {
+    id: 'stable-audio',
+    name: 'Stable Audio 3',
+    vendor: 'Stability AI',
+    license: 'Stability AI Community License',
+    url: 'https://huggingface.co/stabilityai/stable-audio-3-small-sfx',
+    task: 'sfx',
+    tagline: 'Sound effects and ambience from a description.',
+    description:
+      'Powered by Stability AI. Stable Audio 3 Small SFX turns a written description into 44.1 kHz stereo sound effects, foley and ambience, up to two minutes long, in a few seconds. Runs with Stability AI’s official Apple-silicon (MLX) port.',
+    strengths: ['Foley, ambience, UI sounds, creatures, impacts', 'Up to 2 minutes of 44.1 kHz stereo', 'A few seconds per clip', 'Several variations in one go'],
+    limits: [
+      'Free for personal use and for businesses under $1M a year in revenue; commercial users register with Stability AI (stability.ai/community-license)',
+      'English prompts',
+      'Not made for speech or full songs'
+    ],
+    colors: ['#8b5cf6', '#f97316'],
+    languages: ['english'],
+    features: { builtInVoices: false, styleInstructions: false, voiceCloning: false, voiceDesign: false },
+    params: [],
+    voices: []
   }
 ]
 
 export const PROVIDER_BY_ID = new Map(PROVIDERS.map((p) => [p.id, p]))
 export const TTS_PROVIDERS = PROVIDERS.filter((p) => p.task === 'tts')
 export const ASR_PROVIDERS = PROVIDERS.filter((p) => p.task === 'asr')
+export const SFX_PROVIDERS = PROVIDERS.filter((p) => p.task === 'sfx')
 export const DEFAULT_PROVIDER = 'qwen3-tts'
 
 export const PRESET_VOICES: Voice[] = PROVIDERS.flatMap((p) => p.voices)

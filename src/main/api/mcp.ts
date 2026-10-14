@@ -271,6 +271,45 @@ export function createMcpServer(baseUrl: string) {
   )
 
   server.registerTool(
+    'generate_sound_effect',
+    {
+      title: 'Generate a sound effect',
+      description:
+        'Text to sound effect, run on this computer with Stable Audio 3 Small SFX (powered by Stability AI). ' +
+        'Describe the source, action and space (e.g. "a heavy wooden door slams in a stone hallway"). ' +
+        'Returns 44.1 kHz stereo WAV file paths, one per take. Needs the Sound Effects model (see list_models).',
+      inputSchema: {
+        prompt: z.string().min(1).describe('What the sound is, in English'),
+        seconds: z.number().min(0.5).max(120).optional().describe('Length of each take (default 5)'),
+        takes: z.number().int().min(1).max(4).optional().describe('Variations to make in one pass (default 1)'),
+        seed: z.number().int().min(0).optional().describe('Same seed + settings = same result'),
+        prompt_strength: z.number().min(1).max(10).optional().describe('1 (default) = most natural; higher follows the prompt more literally'),
+        avoid: z.string().optional().describe('Sounds to steer away from (used when prompt_strength > 1)'),
+        play: z.boolean().optional().describe('Also play the first take in the Voiceify app')
+      }
+    },
+    async ({ prompt, seconds, takes, seed, prompt_strength, avoid, play }) => {
+      try {
+        const items = await studio.generateSoundEffect({
+          prompt,
+          count: takes,
+          seed,
+          settings: { seconds, cfg: prompt_strength, negativePrompt: avoid },
+          source: 'mcp'
+        })
+        if (play && items[0]) studio.playInApp(items[0].id)
+        const s = items[0]?.sfx
+        return text(
+          `Made ${items.length} take${items.length === 1 ? '' : 's'} of "${prompt}" (${items[0].durationSec.toFixed(1)} s each, seed ${s?.seed}):\n` +
+            items.map((h) => h.audioPath).join('\n')
+        )
+      } catch (e) {
+        return fail(e)
+      }
+    }
+  )
+
+  server.registerTool(
     'list_history',
     {
       title: 'Generation history',

@@ -63,6 +63,11 @@ export const ROLES: Record<string, { label: string; blurb: string; why: string }
     blurb: 'Lets the Large Built-in Voices model speak the voices you create.',
     why: 'A small helper Voiceify downloads automatically. It captures what makes each saved voice sound like itself, so Built-in Voices (Large) can speak it with style instructions, without the Voice Cloning model.'
   },
+  'sound-effects': {
+    label: 'Sound Effects',
+    blurb: 'Creates sound effects, foley and ambience from a written description.',
+    why: 'Powers the Sound Effects page. Describe a sound and get several takes to choose from.'
+  },
   community: {
     label: 'Community Fine-tunes',
     blurb: 'Variants trained by the open-source community for special skills.',
@@ -386,6 +391,52 @@ const whisper: ModelVariant[] = WHISPER.map(({ kind, q, size, quality, speed, su
   }
 })
 
+// Stable Audio 3 Small SFX, from Stability AI's official MLX port. The repo holds every SA3 variant
+// (many GB), so only the three files text-to-SFX needs are fetched, plus the license files.
+const SA3_REPO = 'stabilityai/stable-audio-3-optimized'
+const SA3_REVISION = '08b17423649b5714b22eab20f96bf00751f2358a'
+const SA3_FILES = [
+  { path: 'MLX/dit_sm-sfx_f16.npz', size: 919193814 },
+  { path: 'MLX/t5gemma_f16.npz', size: 567443068 },
+  { path: 'MLX/same_s_decoder_f32.npz', size: 218090820 },
+  { path: 'LICENSE.md', size: 11852 },
+  { path: 'LICENSE_GEMMA.md', size: 10541 },
+  { path: 'NOTICE', size: 97 }
+]
+
+const soundEffects: ModelVariant[] = [
+  {
+    id: 'stable-audio-3-small-sfx',
+    provider: 'stable-audio',
+    name: 'Stable Audio 3 · Small SFX',
+    family: 'Stable Audio 3 · Small SFX',
+    familyId: 'stable-audio-3-small-sfx',
+    role: 'Sound Effects',
+    roleId: 'sound-effects',
+    sizeLabel: 'Small SFX',
+    precisionLabel: '16-bit',
+    summary: 'Fast, high-quality sound effects up to 2 minutes',
+    officialName: 'Stable Audio 3 Small SFX (Stability AI, MLX)',
+    task: 'sfx',
+    capabilities: ['sound-effects'],
+    params: '0.6B',
+    quant: 'bf16',
+    source: {
+      type: 'hf-files',
+      repo: SA3_REPO,
+      revision: SA3_REVISION,
+      files: SA3_FILES,
+      config: { model_type: 'stable_audio_3', variant: 'sm-sfx', sample_rate: 44100, channels: 2, max_seconds: 120 }
+    },
+    sizeBytes: SA3_FILES.reduce((n, f) => n + f.size, 0),
+    quality: 5,
+    speed: 5,
+    minRamGB: 4,
+    description: 'Sound effects, foley and ambience from a description. 44.1 kHz stereo, up to 2 minutes.',
+    tags: ['0.6B', 'Stereo']
+  }
+]
+
 const community: ModelVariant[] = [
   {
     id: 'spragai-emotion-tags-1.7b-8bit',
@@ -415,7 +466,7 @@ const community: ModelVariant[] = [
   }
 ]
 
-export const CATALOG: ModelVariant[] = [...official, fingerprints, ...pocket, ...helpers, ...whisper, ...community]
+export const CATALOG: ModelVariant[] = [...official, fingerprints, ...pocket, ...helpers, ...whisper, ...soundEffects, ...community]
 
 export const CATALOG_BY_ID = new Map(CATALOG.map((m) => [m.id, m]))
 

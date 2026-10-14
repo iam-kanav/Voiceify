@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Capability, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Provider, TranscribeRequest, Transcript, Voice } from '@shared/types'
-import { ASR_PROVIDERS, DEFAULT_PROVIDER, paramsFor, PROVIDER_BY_ID, providersForVoice, STT_LANGUAGES, TTS_PROVIDERS } from '@shared/providers'
+import type { Capability, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Provider, SoundEffectRequest, SoundEffectSettings, TranscribeRequest, Transcript, Voice } from '@shared/types'
+import { ASR_PROVIDERS, DEFAULT_PROVIDER, paramsFor, PROVIDER_BY_ID, providersForVoice, SFX_PROVIDERS, STT_LANGUAGES, TTS_PROVIDERS } from '@shared/providers'
 import { DEFAULT_GENERATION } from '@shared/voices'
 import { engine } from '../engine/client'
 import { bus } from '../events'
@@ -28,7 +28,8 @@ const CAP_NEEDS: Record<Capability, { task: string; model: string }> = {
   'emotion-tags': { task: 'use emotion tags', model: 'Emotion Tags' },
   fingerprint: { task: 'make voice fingerprints', model: 'Voice Fingerprints' },
   transcribe: { task: 'transcribe audio', model: 'Speech to Text' },
-  translate: { task: 'translate speech into English', model: 'Whisper Large' }
+  translate: { task: 'translate speech into English', model: 'Whisper Large' },
+  'sound-effects': { task: 'generate sound effects', model: 'Sound Effects' }
 }
 
 export class StudioError extends Error {
@@ -368,6 +369,90 @@ export async function transcribeAudio(req: TranscribeRequest): Promise<Transcrip
   }
 }
 
+export const SFX_DEFAULTS: SoundEffectSettings = { seconds: 5, steps: 8, cfg: 1 }
+export const SFX_LIMITS = { seconds: [0.5, 120], steps: [1, 50], cfg: [1, 10], count: [1, 4] } as const
+
+const clamp = (v: number, [lo, hi]: readonly [number, number]) => Math.min(hi, Math.max(lo, v))
+
+export interface SoundEffectOptions {
+  jobId?: string
+  onProgress?: (step: number, total: number) => void
+}
+
+/** Text → sound effects. Makes `count` variations in one pass; each becomes a history item. */
+export async function generateSoundEffect(req: SoundEffectRequest, opts: SoundEffectOptions = {}): Promise<HistoryItem[]> {
+  const prompt = (req.prompt ?? '').trim()
+  if (!prompt) throw new StudioError('Describe the sound you want.')
+  const ref = parseModelRef(req.modelId)
+  const family = ref.provider ? PROVIDER_BY_ID.get(ref.provider) : undefined
+  if (family && family.task !== 'sfx') throw new StudioError(`“${family.name}” doesn’t make sound effects.`)
+  const model = requireModel('sound-effects', ref.modelId, family)
+  const num = (v: unknown, fallback: number) => (typeof v === 'number' && isFinite(v) ? v : fallback)
+  const settings: SoundEffectSettings = {
+    seconds: clamp(num(req.settings?.seconds, SFX_DEFAULTS.seconds), SFX_LIMITS.seconds),
+    steps: Math.round(clamp(num(req.settings?.steps, SFX_DEFAULTS.steps), SFX_LIMITS.steps)),
+    cfg: clamp(num(req.settings?.cfg, SFX_DEFAULTS.cfg), SFX_LIMITS.cfg),
+    negativePrompt: req.settings?.negativePrompt?.trim() || undefined
+  }
+  const count = Math.round(clamp(num(req.count, 1), SFX_LIMITS.count))
+  const seed = Number.isInteger(req.seed) ? (req.seed as number) : Math.floor(Math.random() * 2 ** 31)
+  const ids = Array.from({ length: count }, (_, i) => `sfx_${Date.now().toString(36)}_${randomUUID().slice(0, 6)}_${i + 1}`)
+  const modelPath = models.installedPath(model.id)!
+  const coldStart = !engine.isLoaded(modelPath)
+  const jobId = opts.jobId ?? ids[0]
+
+  const result = await engine.request<{ cancelled?: boolean; duration: number; sample_rate: number; processing_time: number }>(
+    'sfx.generate',
+    {
+      model_path: modelPath,
+      prompt,
+      seconds: settings.seconds,
+      steps: settings.steps,
+      cfg: settings.cfg,
+      negative_prompt: settings.cfg > 1 ? settings.negativePrompt : undefined,
+      seed,
+      out_paths: ids.map((id) => history.audioPathFor(id))
+    },
+    {
+      id: jobId,
+      onEvent: (event, data) => {
+        if (event === 'progress' && opts.onProgress) {
+          const d = data as { step: number; total: number }
+          opts.onProgress(d.step, d.total)
+        }
+      }
+    }
+  )
+  engine.markLoaded(modelPath)
+  if (result.cancelled) throw new StudioError('Generation cancelled.')
+
+  const source = req.source ?? 'app'
+  const now = Date.now()
+  const items: HistoryItem[] = ids.map((id, i) => ({
+    id,
+    text: prompt,
+    provider: model.provider,
+    voiceName: count > 1 ? `Sound effect · take ${i + 1}` : 'Sound effect',
+    modelId: model.id,
+    mode: 'sfx',
+    settings: { language: 'english', params: {} },
+    audioPath: history.audioPathFor(id),
+    durationSec: result.duration,
+    sampleRate: result.sample_rate,
+    // One pass made every take, so each take's share of the time is what reflects speed.
+    processingSec: result.processing_time / count,
+    rtf: result.processing_time / count / Math.max(0.001, result.duration),
+    coldStart,
+    createdAt: now - i,
+    source,
+    sfx: { ...settings, seed, variation: i + 1, of: count },
+    ...(keepOnlySaved(source) ? { saved: false } : {})
+  }))
+  // History lists newest first; add the last take first so take 1 ends up on top.
+  for (const item of [...items].reverse()) history.add(item)
+  return items
+}
+
 /** Plain transcription for voice cloning (not recorded in the transcript list). */
 export async function transcribe(audio: Uint8Array | string, language?: string): Promise<string> {
   const model = requireModel('transcribe')
@@ -472,6 +557,12 @@ export function status() {
       tagline: p.tagline,
       installed: installed.some((m) => m.provider === p.id),
       can: { transcribe: has(p.id, 'transcribe'), translate: has(p.id, 'translate') }
+    })),
+    soundEffects: SFX_PROVIDERS.map((p) => ({
+      id: p.id,
+      name: p.name,
+      tagline: p.tagline,
+      installed: installed.some((m) => m.provider === p.id && m.capabilities.includes('sound-effects'))
     }))
   }
 }

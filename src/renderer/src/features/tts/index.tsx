@@ -388,7 +388,8 @@ export default function TextToSpeech() {
 }
 
 function MiniHistory() {
-  const history = useApp((s) => s.history)
+  const all = useApp((s) => s.history)
+  const history = useMemo(() => all.filter((h) => h.mode !== 'sfx'), [all])
   const voices = useApp((s) => s.voices)
   const clip = usePlayer((s) => s.clip)
   const groups = useMemo(() => {

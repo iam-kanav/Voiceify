@@ -77,6 +77,16 @@ const handlers: Handlers = {
         }
       }
     }),
+  generateSoundEffect: (e, req) =>
+    studio.generateSoundEffect(
+      { ...req, source: 'app' },
+      {
+        jobId: req.jobId,
+        onProgress: (step, total) => {
+          if (!e.sender.isDestroyed()) e.sender.send('studio:event:generationProgress', { jobId: req.jobId, step, total })
+        }
+      }
+    ),
   cancelGeneration: (_e, jobId) => studio.cancel(jobId),
 
   listHistory: () => history.list(),

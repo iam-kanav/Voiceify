@@ -10,6 +10,8 @@ import { toast } from '@/components/Toast'
 import { SaveButton, useManualSave } from '@/components/SaveMode'
 import { useApp } from '@/stores/app'
 import { useTts } from '@/stores/tts'
+import { PROVIDER_BY_ID } from '@shared/providers'
+import { useSfx } from '@/stores/sfx'
 import { playHistoryItem, usePlayer } from '@/stores/player'
 import { cn, dayLabel, formatTime, studio } from '@/lib/api'
 import { usePlayerPadding } from '@/lib/useGenerate'
@@ -37,6 +39,14 @@ export default function History() {
   }, [history, q])
 
   const reuse = (h: HistoryItem) => {
+    if (h.mode === 'sfx') {
+      useSfx.setState({
+        prompt: h.text,
+        ...(h.sfx ? { seconds: h.sfx.seconds, steps: h.sfx.steps, cfg: h.sfx.cfg, negativePrompt: h.sfx.negativePrompt ?? '' } : {})
+      })
+      navigate('sound-effects')
+      return
+    }
     const t = useTts.getState()
     const provider = h.provider ?? 'qwen3-tts'
     const voice = voices.find((v) => v.id === h.voiceId)
@@ -74,7 +84,7 @@ export default function History() {
           <EmptyState
             icon={<HistoryIcon className="size-5" />}
             title="Nothing here yet"
-            body="Generated speech from the app, agents and the API shows up here."
+            body="Generated speech and sound effects from the app, agents and the API show up here."
             action={<Button onClick={() => navigate('tts')}>Open Text to Speech</Button>}
           />
         ) : (
@@ -92,7 +102,7 @@ export default function History() {
                       <Row
                         key={h.id}
                         item={h}
-                        colors={voices.find((v) => v.id === h.voiceId)?.colors}
+                        colors={voices.find((v) => v.id === h.voiceId)?.colors ?? (h.mode === 'sfx' ? PROVIDER_BY_ID.get(h.provider ?? '')?.colors : undefined)}
                         modelName={models.find((m) => m.id === h.modelId)?.name ?? h.modelId}
                         onReuse={() => reuse(h)}
                       />
@@ -171,7 +181,7 @@ function Row({ item, colors, modelName, onReuse }: { item: HistoryItem; colors?:
       </div>
       {item.saved === false && <SaveButton saved={false} onSave={() => studio.saveHistory(item.id)} />}
       <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <IconButton label="Open in Text to Speech" onClick={onReuse}>
+        <IconButton label={item.mode === 'sfx' ? 'Open in Sound Effects' : 'Open in Text to Speech'} onClick={onReuse}>
           <Repeat2 className="size-4" />
         </IconButton>
         <IconButton label="Show in Finder" onClick={() => studio.revealInFinder(item.audioPath)}>

@@ -19,7 +19,8 @@ const GATE_COPY: Partial<Record<Capability, { title: string; body: string }>> = 
     body: 'The Voice Cloning model copies a voice from audio. It also speaks the voices you clone or design and save.'
   },
   transcribe: { title: 'Speech to Text needs a model', body: 'A speech recognition model writes down what is said in any audio or video file.' },
-  translate: { title: 'Translation needs Whisper Large', body: 'Whisper Large v3 can write speech in any language as English text. (Whisper Turbo can’t translate.)' }
+  translate: { title: 'Translation needs Whisper Large', body: 'Whisper Large v3 can write speech in any language as English text. (Whisper Turbo can’t translate.)' },
+  'sound-effects': { title: 'Sound Effects needs its model', body: 'Stable Audio 3 Small SFX turns a description into sound effects.' }
 }
 
 /** Inline call-to-action shown when the engine or a model for `cap` is missing. */

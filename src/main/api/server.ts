@@ -139,6 +139,31 @@ async function handle(req: IncomingMessage, res: ServerResponse, port: number) {
       return json(res, code, { error: e instanceof Error ? e.message : String(e) })
     }
   }
+  if (url.pathname === '/api/sound-effects' && req.method === 'POST') {
+    const b = ((await readBody(req)) ?? {}) as Record<string, unknown>
+    const num = (v: unknown) => (typeof v === 'number' ? v : undefined)
+    try {
+      const items = await studio.generateSoundEffect({
+        prompt: String(b.prompt ?? ''),
+        modelId: typeof b.model === 'string' ? b.model : undefined,
+        count: num(b.takes),
+        seed: num(b.seed),
+        source: 'api',
+        settings: {
+          seconds: num(b.seconds),
+          steps: num(b.steps),
+          cfg: num(b.prompt_strength),
+          negativePrompt: typeof b.avoid === 'string' ? b.avoid : undefined
+        }
+      })
+      if (b.play === true && items[0]) studio.playInApp(items[0].id)
+      if (url.searchParams.get('format') === 'wav' && items[0]) return sendAudio(res, items[0].audioPath)
+      return json(res, 200, items.map((h) => ({ ...h, audio_url: `${baseUrl}/api/audio/${h.id}` })))
+    } catch (e) {
+      const code = e instanceof studio.StudioError && e.code === 'no-model' ? 409 : 400
+      return json(res, code, { error: e instanceof Error ? e.message : String(e) })
+    }
+  }
   json(res, 404, { error: 'Not found' })
 }
 

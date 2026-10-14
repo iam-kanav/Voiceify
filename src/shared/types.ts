@@ -1,7 +1,7 @@
 // Types shared by the main process, preload bridge, renderer, and the local API/MCP server.
 
 /** A task is a kind of work the engine can do. New features (sound effects, video…) add new tasks. */
-export type Task = 'tts' | 'asr'
+export type Task = 'tts' | 'asr' | 'sfx'
 
 export type Capability =
   | 'preset-voices' // built-in speakers (CustomVoice)
@@ -12,6 +12,7 @@ export type Capability =
   | 'transcribe' // speech → text
   | 'translate' // speech in any language → English text
   | 'fingerprint' // turns a saved voice into a speaker embedding the Built-in Voices model can use
+  | 'sound-effects' // text → sound effects
 
 export type Quant = '4bit' | '5bit' | '6bit' | '8bit' | 'bf16'
 
@@ -30,6 +31,8 @@ export type ModelSource =
   | { type: 'hf-convert'; repo: string; qBits?: 4 | 6 | 8; extras?: ExtraFile[] } // PyTorch weights converted locally
   /** Only the tensors starting with `prefix` from one safetensors file (plus config.json), fetched with ranged requests. */
   | { type: 'hf-tensors'; repo: string; revision?: string; file: string; prefix: string; saveAs: string; extras?: ExtraFile[] }
+  /** Only the listed files of a (large, multi-model) repo, plus a config.json Voiceify writes itself. */
+  | { type: 'hf-files'; repo: string; revision: string; files: { path: string; size: number }[]; config: Record<string, unknown>; extras?: ExtraFile[] }
 
 /** A setting a provider understands, with a plain-language explanation. Rendered as a slider. */
 export interface ParamSpec {
@@ -184,7 +187,7 @@ export interface Voice {
 
 // ---------- Generation ----------
 
-export type GenerationMode = 'preset' | 'clone' | 'design' | 'fingerprint'
+export type GenerationMode = 'preset' | 'clone' | 'design' | 'fingerprint' | 'sfx'
 
 export interface GenerationSettings {
   language: string // "auto" | "english" | …
@@ -229,6 +232,32 @@ export interface HistoryItem {
   ephemeral?: boolean
   /** false = not kept yet ("Only what I save" mode); removed when Voiceify quits. Missing = kept. */
   saved?: boolean
+  /** Sound effects: how this clip was made (`text` holds the prompt). */
+  sfx?: SoundEffectSettings & { seed: number; variation: number; of: number }
+}
+
+// ---------- Sound effects ----------
+
+export interface SoundEffectSettings {
+  /** Length of the clip in seconds (0.5–120). */
+  seconds: number
+  /** Sampling steps; the model is tuned for 8. */
+  steps: number
+  /** Prompt strength. 1 = the model's own balance (fastest); higher follows the prompt more literally. */
+  cfg: number
+  /** What to steer away from (only used when cfg > 1). */
+  negativePrompt?: string
+}
+
+export interface SoundEffectRequest {
+  prompt: string
+  modelId?: string
+  settings?: Partial<SoundEffectSettings>
+  /** Variations made in one pass (1–4). */
+  count?: number
+  /** Random if omitted. */
+  seed?: number
+  source?: 'app' | 'mcp' | 'api'
 }
 
 // ---------- Speech to text ----------
@@ -278,6 +307,12 @@ export interface GenerationChunk {
   pcm: Uint8Array
   sampleRate: number
   final?: boolean
+}
+
+export interface GenerationProgress {
+  jobId: string
+  step: number
+  total: number
 }
 
 export interface DownloadProgressEvent {

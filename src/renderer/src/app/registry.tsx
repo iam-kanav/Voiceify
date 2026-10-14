@@ -37,7 +37,8 @@ export interface Feature {
   hidden?: boolean
 }
 
-const ComingSoon = lazy(() => import('@/features/coming-soon'))
+// Placeholder page for features listed with `status: 'soon'`.
+export const ComingSoon = lazy(() => import('@/features/coming-soon'))
 
 export const FEATURES: Feature[] = [
   {
@@ -80,10 +81,10 @@ export const FEATURES: Feature[] = [
     id: 'sound-effects',
     label: 'Sound Effects',
     icon: Sparkles,
-    section: 'soon',
-    status: 'soon',
+    section: 'playground',
+    status: 'ready',
     description: 'Generate sound effects from text prompts',
-    component: ComingSoon
+    component: lazy(() => import('@/features/sound-effects'))
   },
   {
     id: 'history',

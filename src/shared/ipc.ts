@@ -5,8 +5,10 @@ import type {
   EngineStatus,
   GenerateRequest,
   GenerationChunk,
+  GenerationProgress,
   HistoryItem,
   ModelInfo,
+  SoundEffectRequest,
   SystemInfo,
   TranscribeRequest,
   Transcript,
@@ -49,6 +51,8 @@ export interface StudioInvoke {
   previewVoice(id: string): { path: string }
 
   generate(req: GenerateRequest & { jobId: string }): HistoryItem
+  /** Sound effects: one history item per variation, take 1 first. Progress arrives as `generationProgress`. */
+  generateSoundEffect(req: SoundEffectRequest & { jobId: string }): HistoryItem[]
   cancelGeneration(jobId: string): void
 
   listHistory(): HistoryItem[]
@@ -80,6 +84,8 @@ export interface StudioEvents {
   historyChanged: null
   transcriptsChanged: null
   generationChunk: GenerationChunk
+  /** Sampling progress for jobs that don't stream audio (sound effects). */
+  generationProgress: GenerationProgress
   /** Asks the renderer to play a history item (e.g. an agent called text_to_speech with play=true). */
   playHistory: { id: string }
   apiServer: ApiServerInfo
@@ -115,6 +121,7 @@ export const INVOKE_METHODS: (keyof StudioInvoke)[] = [
   'transcribe',
   'previewVoice',
   'generate',
+  'generateSoundEffect',
   'cancelGeneration',
   'listHistory',
   'saveHistory',
