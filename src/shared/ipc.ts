@@ -2,6 +2,7 @@ import type {
   ApiServerInfo,
   AppSettings,
   DownloadProgressEvent,
+  EnhanceRequest,
   EngineStatus,
   GenerateRequest,
   GenerationChunk,
@@ -54,6 +55,8 @@ export interface StudioInvoke {
   generate(req: GenerateRequest & { jobId: string }): HistoryItem
   /** Script mode: several voices in one text; streams like `generate`, returns one combined item. */
   generateScript(req: ScriptRequest & { jobId: string }): HistoryItem
+  /** Speech enhancement; `audio` is WAV bytes. Progress arrives as `generationProgress`. */
+  enhanceAudio(req: EnhanceRequest & { jobId: string }): HistoryItem
   /** Sound effects: one history item per variation, take 1 first. Progress arrives as `generationProgress`. */
   generateSoundEffect(req: SoundEffectRequest & { jobId: string }): HistoryItem[]
   cancelGeneration(jobId: string): void
@@ -126,6 +129,7 @@ export const INVOKE_METHODS: (keyof StudioInvoke)[] = [
   'generate',
   'generateScript',
   'generateSoundEffect',
+  'enhanceAudio',
   'cancelGeneration',
   'listHistory',
   'saveHistory',

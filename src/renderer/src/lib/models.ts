@@ -9,7 +9,8 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   transcribe: 'Speech to text',
   translate: 'Translate to English',
   fingerprint: 'Voice fingerprints',
-  'sound-effects': 'Sound effects'
+  'sound-effects': 'Sound effects',
+  'enhance-speech': 'Speech enhancement'
 }
 
 export const isInstalled = (m: ModelInfo) => m.install.status === 'installed'

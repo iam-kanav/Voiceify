@@ -30,6 +30,7 @@ Text to speech, voice design and voice cloning with multiple open-source AI mode
 - **Free to run.** No subscriptions or character quotas. Generate as much audio as your hardware allows.
 - **Several open models, one studio.** [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) for expressive speech in 10 languages, voice design and high-fidelity cloning; [Pocket TTS](https://huggingface.co/kyutai/pocket-tts) for tiny (140 MB), very fast English voices and cloning. Pick a model and the interface adapts to what it can do.
 - **Speech to text, too.** Transcribe any audio or video with [Qwen3-ASR](https://huggingface.co/collections/Qwen/qwen3-asr) or OpenAI [Whisper](https://huggingface.co/openai/whisper-large-v3), export subtitles, or translate speech into English.
+- **Speech enhancement.** Remove background noise from a recording, or fully restore it (bandwidth, clarity, 44.1 kHz) with [Resemble Enhance](https://github.com/resemble-ai/resemble-enhance), and compare the original with the result.
 - **Sound effects.** Describe a sound and get up to four takes of 44.1 kHz stereo foley, ambience or UI sounds in a couple of seconds, with [Stable Audio 3 Small SFX](https://huggingface.co/stabilityai/stable-audio-3-small-sfx) running on Stability AI's official MLX port. Powered by Stability AI.
 - **Voices travel between models.** Voices you clone or design are stored as a short reference recording, so any model that supports your own voices can speak them. Design a voice with Qwen3-TTS, then use it with Pocket TTS. Each saved voice also gets a **voice fingerprint**, so Qwen3-TTS can speak it like a built-in voice and follow style instructions with it.
 - **Pick your trade-off.** Install the model sizes and precisions that suit your machine. Voiceify recommends a set based on your memory and shows the speed it actually measures on your computer.
@@ -149,6 +150,7 @@ Within Qwen3-TTS, each task uses its own model; Voiceify names them by what they
 | **Pocket TTS** | Kyutai Pocket TTS (100M) | Built-in voices and cloning in one tiny model |
 | **Qwen3-ASR** · Small / Large | Qwen3-ASR 0.6B / 1.7B | Speech to text in 30 languages; also auto-fills transcripts when cloning |
 | **Whisper** · Turbo / Large (optional) | OpenAI Whisper Large v3 Turbo (809M) / Large v3 (1.55B) | Speech to text in 99 languages with sentence timestamps; Large also translates into English |
+| **Speech Enhancement** (optional, 710 MB) | Resemble Enhance (Resemble AI), MLX port | Denoise or fully enhance speech recordings; 44.1 kHz output |
 | **Sound Effects** (optional, 1.7 GB) | Stable Audio 3 Small SFX (Stability AI, official MLX weights) | Sound effects, foley and ambience from a description; 44.1 kHz stereo, up to 2 minutes |
 
 Every Qwen3-TTS model comes in **full precision** and in compressed **8 / 6 / 5 / 4-bit** versions. Fewer bits mean a smaller download, less memory and faster speech, at some cost to expressiveness. 8-bit sounds almost identical to full precision and is the default recommendation for most machines.
@@ -174,6 +176,7 @@ Then just ask: *“Read the release notes aloud in the Aiden voice, calm and pro
 | `design_voice` | Invent a voice from a description and optionally save it |
 | `clone_voice` | Clone a voice from an audio file (auto-transcribed) |
 | `transcribe_audio` | Speech to text for a local audio file (Qwen3-ASR or Whisper); plain text, SRT/VTT subtitles or JSON with timestamps; Whisper Large can translate into English |
+| `enhance_audio` | Clean up a local speech recording: denoise only, or denoise and restore quality (Resemble Enhance) |
 | `generate_sound_effect` | Make sound effects from a description (Stable Audio 3 Small SFX): length, number of takes, seed, prompt strength and sounds to avoid |
 | `play_audio`, `list_history` | Replay and browse past generations |
 | `list_models`, `install_model`, `get_status` | Inspect and manage models |
@@ -249,6 +252,8 @@ docs/images/       README screenshots
 - [x] Multiple model families (Qwen3-TTS, Pocket TTS) with a model-aware interface
 - [x] Speech to text with Qwen3-ASR and Whisper, with subtitle export
 - [x] Sound effects generation (Stable Audio 3 Small SFX)
+- [x] Script mode: several voices in one text
+- [x] Speech enhancement (Resemble Enhance)
 - [ ] More model providers (multilingual Pocket TTS, …)
 - [ ] Windows and Linux support (needs a non-MLX inference backend)
 - [ ] Signed and notarized macOS builds

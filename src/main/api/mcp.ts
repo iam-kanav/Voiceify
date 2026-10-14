@@ -311,6 +311,32 @@ export function createMcpServer(baseUrl: string) {
   )
 
   server.registerTool(
+    'enhance_audio',
+    {
+      title: 'Enhance a speech recording',
+      description:
+        'Clean up a local speech recording with Resemble Enhance, on this computer. mode="enhance" (default) removes noise and restores quality and ' +
+        'bandwidth (44.1 kHz); mode="denoise" only removes background noise (fast, lighter touch). Returns the WAV path. Needs the Speech Enhancement model (see list_models).',
+      inputSchema: {
+        audio_path: z.string().describe('Absolute path to an audio file (WAV, FLAC, OGG…)'),
+        mode: z.enum(['enhance', 'denoise']).optional(),
+        steps: z.number().int().min(1).max(128).optional().describe('Enhancer steps (default 32; more = smoother, slower)'),
+        denoise_strength: z.number().min(0).max(1).optional().describe('0–1, default 0.5'),
+        play: z.boolean().optional().describe('Play the result in the Voiceify app')
+      }
+    },
+    async ({ audio_path, mode, steps, denoise_strength, play }) => {
+      try {
+        const item = await studio.enhanceAudio({ audio: audio_path, mode, settings: { nfe: steps, lambd: denoise_strength }, source: 'mcp' })
+        if (play) studio.playInApp(item.id)
+        return text(`${item.voiceName} "${item.text}" (${item.durationSec.toFixed(1)} s, 44.1 kHz):\n${item.audioPath}`)
+      } catch (e) {
+        return fail(e)
+      }
+    }
+  )
+
+  server.registerTool(
     'generate_sound_effect',
     {
       title: 'Generate a sound effect',

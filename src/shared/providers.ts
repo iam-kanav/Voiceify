@@ -317,6 +317,63 @@ export const PROVIDERS: Provider[] = [
       }
     ],
     voices: []
+  },
+  {
+    id: 'resemble-enhance',
+    name: 'Resemble Enhance',
+    vendor: 'Resemble AI',
+    license: 'MIT',
+    url: 'https://github.com/resemble-ai/resemble-enhance',
+    task: 'enhance',
+    tagline: 'Cleans up noisy, muffled or old speech recordings.',
+    description:
+      'Resemble Enhance removes background noise and then restores speech quality: it rebuilds lost high frequencies, reduces distortion and outputs 44.1 kHz audio. Runs with an Apple-silicon (MLX) port of the original model.',
+    strengths: ['Removes background noise, hum and reverb-like muddiness', 'Restores bandwidth of phone, Zoom or old recordings', 'Denoise-only mode for a light touch', 'Any length (processed in 10 s pieces)'],
+    limits: ['Speech only: music and sound effects are not preserved', 'Enhance regenerates the voice, so very noisy input can come out slightly changed', 'About real time at the default 32 steps'],
+    colors: ['#06b6d4', '#a855f7'],
+    languages: ['english'],
+    features: { builtInVoices: false, styleInstructions: false, voiceCloning: false, voiceDesign: false },
+    params: [
+      {
+        key: 'steps',
+        engineKey: 'nfe',
+        label: 'Quality steps',
+        help: 'How many solver evaluations the enhancer makes (its step count). More is smoother but slower; 32 is the original default, 64 is the maximum-quality setting people often use.',
+        min: 1,
+        max: 128,
+        step: 1,
+        default: 32,
+        integer: true,
+        left: 'Faster',
+        right: 'More passes'
+      },
+      {
+        key: 'denoiseStrength',
+        engineKey: 'lambd',
+        label: 'Denoise strength',
+        help: 'How much the enhancer works from the denoised audio rather than the original. Raise it for noisy recordings; lower it if voices sound processed. Default 0.5.',
+        min: 0,
+        max: 1,
+        step: 0.05,
+        default: 0.5,
+        left: 'Gentle',
+        right: 'Strong'
+      },
+      {
+        key: 'priorTemperature',
+        engineKey: 'tau',
+        label: 'Regeneration',
+        help: 'How freely the enhancer may re-create detail (prior temperature). Lower stays closer to the original recording; higher restores more but can change the voice slightly. Default 0.5.',
+        min: 0,
+        max: 1,
+        step: 0.05,
+        default: 0.5,
+        advanced: true,
+        left: 'Faithful',
+        right: 'Restorative'
+      }
+    ],
+    voices: []
   }
 ]
 
@@ -324,6 +381,7 @@ export const PROVIDER_BY_ID = new Map(PROVIDERS.map((p) => [p.id, p]))
 export const TTS_PROVIDERS = PROVIDERS.filter((p) => p.task === 'tts')
 export const ASR_PROVIDERS = PROVIDERS.filter((p) => p.task === 'asr')
 export const SFX_PROVIDERS = PROVIDERS.filter((p) => p.task === 'sfx')
+export const ENHANCE_PROVIDERS = PROVIDERS.filter((p) => p.task === 'enhance')
 export const DEFAULT_PROVIDER = 'qwen3-tts'
 
 export const PRESET_VOICES: Voice[] = PROVIDERS.flatMap((p) => p.voices)

@@ -25,8 +25,8 @@ export function ModelSettings() {
     <Card className="p-5">
       <div className="text-sm font-semibold">Model settings</div>
       <div className="mt-0.5 text-[13px] text-ink-3">
-        Starting values for each model family, including step counts. They apply in Text to Speech and Sound Effects, and to AI apps and
-        the local API. Changes you make on those pages stay on that page.
+        Starting values for each model family, including step counts. They apply in Text to Speech, Sound Effects and Speech Enhancement,
+        and to AI apps and the local API. Changes you make on those pages stay on that page.
       </div>
       <div className="mt-4">
         <Tabs id="model-settings-family" value={family.id} onChange={setFamilyId} tabs={families.map((f) => ({ id: f.id, label: f.name }))} />

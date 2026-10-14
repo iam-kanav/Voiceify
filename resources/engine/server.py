@@ -109,6 +109,10 @@ class ModelCache:
             from sfx import StableAudioSFX
 
             model = StableAudioSFX(path)
+        elif kind == "enhance":
+            import resemble_enhance_mlx
+
+            model = resemble_enhance_mlx.load(os.path.join(path, "resemble-enhance-mlx.safetensors"))
         else:
             from mlx_audio.tts.utils import load_model as load_tts
 
@@ -560,6 +564,64 @@ def handle_sfx_generate(job: Job) -> Dict[str, Any]:
     }
 
 
+def handle_enhance_run(job: Job) -> Dict[str, Any]:
+    """Speech enhancement (Resemble Enhance). mode "enhance" = denoise + restore quality and
+    bandwidth (generative); mode "denoise" = remove background noise only (fast).
+    Writes a 44.1 kHz mono WAV to `out_path`."""
+    import soundfile as sf
+
+    import resemble_enhance_mlx as re_mlx
+
+    p = job.params
+    model = CACHE.get(p["model_path"], "enhance")
+    n = np()
+    audio, sr = sf.read(p["audio_path"], dtype="float32", always_2d=True)
+    audio = audio.mean(axis=1)
+    if audio.size < sr * 0.1:
+        raise RuntimeError("That clip is too short to enhance.")
+    mode = p.get("mode", "enhance")
+    re_mlx.configure(
+        model,
+        nfe=int(p.get("nfe", 32)),
+        solver=p.get("solver", "midpoint"),
+        lambd=float(p.get("lambd", 0.5)),
+        tau=float(p.get("tau", 0.5)),
+    )
+    last = [0.0]
+
+    def on_progress(done: int, total: int) -> None:
+        now = time.time()
+        if done == total or now - last[0] > 0.2:
+            last[0] = now
+            job.emit("progress", {"step": done, "total": total})
+
+    try:
+        mx().reset_peak_memory()
+    except Exception:
+        pass
+    t0 = time.time()
+    run = re_mlx.denoise if mode == "denoise" else re_mlx.enhance
+    try:
+        out, out_sr = run(model, audio, sr, on_progress=on_progress, cancelled=lambda: job.cancelled)
+    except re_mlx.Cancelled:
+        return {"cancelled": True}
+    out = n.clip(n.nan_to_num(out), -1.0, 1.0)
+    write_wav(p["out_path"], out, out_sr)
+    peak = 0.0
+    try:
+        peak = mx().get_peak_memory() / 1e9
+    except Exception:
+        pass
+    return {
+        "path": p["out_path"],
+        "duration": len(out) / out_sr,
+        "input_duration": audio.size / sr,
+        "sample_rate": out_sr,
+        "processing_time": time.time() - t0,
+        "peak_memory_gb": peak,
+    }
+
+
 def handle_convert(job: Job) -> Dict[str, Any]:
     """Convert a PyTorch Qwen3-TTS checkpoint (e.g. a community fine-tune) to MLX."""
     from mlx_audio.convert import convert
@@ -599,6 +661,7 @@ HANDLERS: Dict[str, Callable[[Job], Dict[str, Any]]] = {
     "tts.generate": handle_tts_generate,
     "asr.transcribe": handle_asr_transcribe,
     "sfx.generate": handle_sfx_generate,
+    "enhance.run": handle_enhance_run,
     "voice.fingerprint": handle_voice_fingerprint,
     "models.convert": handle_convert,
     "models.load": handle_load,

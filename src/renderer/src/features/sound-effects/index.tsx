@@ -37,8 +37,8 @@ import { sfxValues, useSfx } from '@/stores/sfx'
 import { playHistoryItem, usePlayer } from '@/stores/player'
 import { usePlayerPadding } from '@/lib/useGenerate'
 import { isInstalled } from '@/lib/models'
-import { peaks } from '@/lib/wav'
-import { cn, dayLabel, formatTime, mediaUrl, studio, uid } from '@/lib/api'
+import { useFilePeaks } from '@/lib/useFilePeaks'
+import { cn, dayLabel, formatTime, studio, uid } from '@/lib/api'
 
 const PROVIDER = SFX_PROVIDERS[0]
 const SPEC = Object.fromEntries(PROVIDER.params.map((p) => [p.key, p]))
@@ -384,32 +384,6 @@ export default function SoundEffects() {
       </div>
     </div>
   )
-}
-
-const peakCache = new Map<string, number[]>()
-
-/** Waveform bars for a clip on disk (decoded once, then cached). */
-function useFilePeaks(path: string, bars = 96) {
-  const [p, setP] = useState<number[]>(() => peakCache.get(path) ?? [])
-  useEffect(() => {
-    if (peakCache.has(path)) return setP(peakCache.get(path)!)
-    let alive = true
-    const ctx = new AudioContext()
-    fetch(mediaUrl(path))
-      .then((r) => r.arrayBuffer())
-      .then((b) => ctx.decodeAudioData(b))
-      .then((buf) => {
-        const v = peaks(buf.getChannelData(0), bars)
-        peakCache.set(path, v)
-        if (alive) setP(v)
-      })
-      .catch(() => undefined)
-      .finally(() => ctx.close())
-    return () => {
-      alive = false
-    }
-  }, [path, bars])
-  return p
 }
 
 function Take({ item, onReuse }: { item: HistoryItem; onReuse: () => void }) {

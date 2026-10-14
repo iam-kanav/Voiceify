@@ -68,6 +68,11 @@ export const ROLES: Record<string, { label: string; blurb: string; why: string }
     blurb: 'Creates sound effects, foley and ambience from a written description.',
     why: 'Powers the Sound Effects page. Describe a sound and get several takes to choose from.'
   },
+  'speech-enhancement': {
+    label: 'Speech Enhancement',
+    blurb: 'Cleans up noisy, muffled or low-quality speech recordings.',
+    why: 'Powers the Speech Enhancement page: remove background noise, or fully restore a recording.'
+  },
   community: {
     label: 'Community Fine-tunes',
     blurb: 'Variants trained by the open-source community for special skills.',
@@ -437,6 +442,45 @@ const soundEffects: ModelVariant[] = [
   }
 ]
 
+// Resemble Enhance (MIT), from an MLX port of the original checkpoint (fp16, one file).
+const RE_FILES = [
+  { path: 'resemble-enhance-mlx.safetensors', size: 709908425 },
+  { path: 'README.md', size: 2262 }
+]
+
+const enhancers: ModelVariant[] = [
+  {
+    id: 'resemble-enhance',
+    provider: 'resemble-enhance',
+    name: 'Resemble Enhance',
+    family: 'Resemble Enhance',
+    familyId: 'resemble-enhance',
+    role: 'Speech Enhancement',
+    roleId: 'speech-enhancement',
+    sizeLabel: 'Denoiser + Enhancer',
+    precisionLabel: '16-bit',
+    summary: 'Denoise and restore speech to 44.1 kHz',
+    officialName: 'Resemble Enhance (Resemble AI, MLX port)',
+    task: 'enhance',
+    capabilities: ['enhance-speech'],
+    params: '0.35B',
+    quant: 'bf16',
+    source: {
+      type: 'hf-files',
+      repo: 'multimodalart/resemble-enhance-mlx',
+      revision: '1edb76415d18554f6e35f13edf9c22e33c47ce7d',
+      files: RE_FILES,
+      config: { model_type: 'resemble_enhance', sample_rate: 44100 }
+    },
+    sizeBytes: RE_FILES.reduce((n, f) => n + f.size, 0),
+    quality: 5,
+    speed: 4,
+    minRamGB: 8,
+    description: 'Removes background noise and restores speech quality and bandwidth. 44.1 kHz output.',
+    tags: ['Denoise', 'Enhance']
+  }
+]
+
 const community: ModelVariant[] = [
   {
     id: 'spragai-emotion-tags-1.7b-8bit',
@@ -466,7 +510,7 @@ const community: ModelVariant[] = [
   }
 ]
 
-export const CATALOG: ModelVariant[] = [...official, fingerprints, ...pocket, ...helpers, ...whisper, ...soundEffects, ...community]
+export const CATALOG: ModelVariant[] = [...official, fingerprints, ...pocket, ...helpers, ...whisper, ...soundEffects, ...enhancers, ...community]
 
 export const CATALOG_BY_ID = new Map(CATALOG.map((m) => [m.id, m]))
 

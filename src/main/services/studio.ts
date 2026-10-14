@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Capability, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Provider, ScriptPart, ScriptRequest, SoundEffectRequest, SoundEffectSettings, TranscribeRequest, Transcript, Voice } from '@shared/types'
+import type { Capability, EnhanceRequest, EnhanceSettings, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Provider, ScriptPart, ScriptRequest, SoundEffectRequest, SoundEffectSettings, TranscribeRequest, Transcript, Voice } from '@shared/types'
 import { parseScript, resolveSpeaker } from '@shared/script'
-import { ASR_PROVIDERS, DEFAULT_PROVIDER, paramsFor, PROVIDER_BY_ID, providersForVoice, SFX_PROVIDERS, STT_LANGUAGES, TTS_PROVIDERS } from '@shared/providers'
+import { ASR_PROVIDERS, DEFAULT_PROVIDER, ENHANCE_PROVIDERS, paramsFor, PROVIDER_BY_ID, providersForVoice, SFX_PROVIDERS, STT_LANGUAGES, TTS_PROVIDERS } from '@shared/providers'
 import { DEFAULT_GENERATION } from '@shared/voices'
 import { engine } from '../engine/client'
 import { bus } from '../events'
@@ -31,7 +31,8 @@ const CAP_NEEDS: Record<Capability, { task: string; model: string }> = {
   fingerprint: { task: 'make voice fingerprints', model: 'Voice Fingerprints' },
   transcribe: { task: 'transcribe audio', model: 'Speech to Text' },
   translate: { task: 'translate speech into English', model: 'Whisper Large' },
-  'sound-effects': { task: 'generate sound effects', model: 'Sound Effects' }
+  'sound-effects': { task: 'generate sound effects', model: 'Sound Effects' },
+  'enhance-speech': { task: 'enhance speech', model: 'Speech Enhancement' }
 }
 
 export class StudioError extends Error {
@@ -572,6 +573,82 @@ export async function generateSoundEffect(req: SoundEffectRequest, opts: SoundEf
   return items
 }
 
+/**
+ * Speech enhancement: clean up a recording with Resemble Enhance. "denoise" only removes background
+ * noise (fast); "enhance" also restores quality and bandwidth. The result is a 44.1 kHz history item.
+ */
+export async function enhanceAudio(req: EnhanceRequest, opts: SoundEffectOptions = {}): Promise<HistoryItem> {
+  const ref = parseModelRef(req.modelId)
+  const family = ref.provider ? PROVIDER_BY_ID.get(ref.provider) : undefined
+  if (family && family.task !== 'enhance') throw new StudioError(`“${family.name}” doesn’t enhance speech.`)
+  const model = requireModel('enhance-speech', ref.modelId, family)
+  const mode = req.mode === 'denoise' ? 'denoise' : 'enhance'
+  const num = (v: unknown, fallback: number) => (typeof v === 'number' && isFinite(v) ? v : fallback)
+  const d = paramsFor(model.provider, {}, getSettings().providerDefaults?.[model.provider])
+  const settings: EnhanceSettings = {
+    nfe: Math.round(clamp(num(req.settings?.nfe, d.steps), [1, 128])),
+    lambd: clamp(num(req.settings?.lambd, d.denoiseStrength), [0, 1]),
+    tau: clamp(num(req.settings?.tau, d.priorTemperature), [0, 1]),
+    solver: req.settings?.solver === 'euler' ? 'euler' : 'midpoint'
+  }
+
+  let file = typeof req.audio === 'string' ? req.audio : ''
+  let tmp = ''
+  if (typeof req.audio === 'string') {
+    if (!existsSync(req.audio)) throw new StudioError(`File not found: ${req.audio}`)
+  } else {
+    tmp = join(paths.tmp, `enh-${randomUUID()}.wav`)
+    writeFileSync(tmp, req.audio)
+    file = tmp
+  }
+  const id = `enh_${Date.now().toString(36)}_${randomUUID().slice(0, 6)}`
+  const outPath = history.audioPathFor(id)
+  const modelPath = models.installedPath(model.id)!
+  const coldStart = !engine.isLoaded(modelPath)
+  try {
+    const res = await engine.request<{ cancelled?: boolean; duration: number; input_duration: number; sample_rate: number; processing_time: number }>(
+      'enhance.run',
+      { model_path: modelPath, audio_path: file, out_path: outPath, mode, ...settings },
+      {
+        id: opts.jobId ?? id,
+        onEvent: (event, data) => {
+          if (event === 'progress' && opts.onProgress) {
+            const p = data as { step: number; total: number }
+            opts.onProgress(p.step, p.total)
+          }
+        }
+      }
+    )
+    engine.markLoaded(modelPath)
+    if (res.cancelled) throw new StudioError('Generation cancelled.')
+    const source = req.source ?? 'app'
+    const name = req.name?.trim() || (typeof req.audio === 'string' ? req.audio.split(/[\\/]/).pop()! : 'Recording')
+    const item: HistoryItem = {
+      id,
+      text: name,
+      provider: model.provider,
+      voiceName: mode === 'denoise' ? 'Denoised' : 'Enhanced',
+      modelId: model.id,
+      mode: 'enhance',
+      settings: { language: 'english', params: {} },
+      audioPath: outPath,
+      durationSec: res.duration,
+      sampleRate: res.sample_rate,
+      processingSec: res.processing_time,
+      rtf: res.processing_time / Math.max(0.001, res.duration),
+      coldStart,
+      createdAt: Date.now(),
+      source,
+      enhance: { ...settings, mode, inputSec: res.input_duration },
+      ...(keepOnlySaved(source) ? { saved: false } : {})
+    }
+    history.add(item)
+    return item
+  } finally {
+    if (tmp) rmSync(tmp, { force: true })
+  }
+}
+
 /** Plain transcription for voice cloning (not recorded in the transcript list). */
 export async function transcribe(audio: Uint8Array | string, language?: string): Promise<string> {
   const model = requireModel('transcribe')
@@ -676,6 +753,12 @@ export function status() {
       tagline: p.tagline,
       installed: installed.some((m) => m.provider === p.id),
       can: { transcribe: has(p.id, 'transcribe'), translate: has(p.id, 'translate') }
+    })),
+    speechEnhancement: ENHANCE_PROVIDERS.map((p) => ({
+      id: p.id,
+      name: p.name,
+      tagline: p.tagline,
+      installed: installed.some((m) => m.provider === p.id && m.capabilities.includes('enhance-speech'))
     })),
     soundEffects: SFX_PROVIDERS.map((p) => ({
       id: p.id,

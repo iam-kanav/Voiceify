@@ -47,6 +47,10 @@ export default function History() {
       navigate('sound-effects')
       return
     }
+    if (h.mode === 'enhance') {
+      navigate('speech-enhancement')
+      return
+    }
     if (h.mode === 'script') {
       useTts.setState({ text: h.text, scriptMode: true, scriptPause: h.script?.pauseSec ?? 0.35 })
       navigate('tts')
@@ -107,7 +111,7 @@ export default function History() {
                       <Row
                         key={h.id}
                         item={h}
-                        colors={voices.find((v) => v.id === h.voiceId)?.colors ?? (h.mode === 'sfx' ? PROVIDER_BY_ID.get(h.provider ?? '')?.colors : undefined)}
+                        colors={voices.find((v) => v.id === h.voiceId)?.colors ?? (h.mode === 'sfx' || h.mode === 'enhance' ? PROVIDER_BY_ID.get(h.provider ?? '')?.colors : undefined)}
                         modelName={models.find((m) => m.id === h.modelId)?.name ?? h.modelId}
                         onReuse={() => reuse(h)}
                       />
@@ -186,7 +190,7 @@ function Row({ item, colors, modelName, onReuse }: { item: HistoryItem; colors?:
       </div>
       {item.saved === false && <SaveButton saved={false} onSave={() => studio.saveHistory(item.id)} />}
       <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <IconButton label={item.mode === 'sfx' ? 'Open in Sound Effects' : 'Open in Text to Speech'} onClick={onReuse}>
+        <IconButton label={item.mode === 'sfx' ? 'Open in Sound Effects' : item.mode === 'enhance' ? 'Open Speech Enhancement' : 'Open in Text to Speech'} onClick={onReuse}>
           <Repeat2 className="size-4" />
         </IconButton>
         <IconButton label="Show in Finder" onClick={() => studio.revealInFinder(item.audioPath)}>

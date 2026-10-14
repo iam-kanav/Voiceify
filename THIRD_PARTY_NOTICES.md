@@ -18,6 +18,8 @@ Models are fetched from Hugging Face on the user's request and stay under their 
 
 | [Stable Audio 3 Small SFX](https://huggingface.co/stabilityai/stable-audio-3-small-sfx), official MLX weights from [stabilityai/stable-audio-3-optimized](https://huggingface.co/stabilityai/stable-audio-3-optimized) (optional) | Stability AI | [Stability AI Community License](https://stability.ai/community-license-agreement); bundled T5Gemma text encoder under the [Gemma Terms of Use](https://ai.google.dev/gemma/terms) |
 
+| [Resemble Enhance](https://huggingface.co/ResembleAI/resemble-enhance), via the [MLX port](https://huggingface.co/multimodalart/resemble-enhance-mlx) of its weights (optional) | Resemble AI (port: multimodalart) | MIT |
+
 **Powered by Stability AI.** This Stability AI Model is licensed under the Stability AI Community License, Copyright © Stability AI Ltd. All Rights Reserved. The license text, the Gemma Terms of Use and Stability AI's NOTICE are downloaded with the model into its folder. Use is free for research, non-commercial use, and commercial use by individuals and organizations with under US $1,000,000 in annual revenue; commercial users must register at https://stability.ai/community-license, and larger organizations need an enterprise license from Stability AI. Use must follow Stability AI's [Acceptable Use Policy](https://stability.ai/use-policy).
 
 Kyutai asks that Pocket TTS not be used for voice impersonation or cloning without explicit and lawful consent, misinformation, or fraud. Voiceify users are responsible for complying with these terms.
@@ -35,6 +37,7 @@ Kyutai asks that Pocket TTS not be used for voice impersonation or cloning witho
 | [SentencePiece](https://github.com/google/sentencepiece) | Apache-2.0 |
 | [Requests](https://github.com/psf/requests) | Apache-2.0 |
 | [Hugging Face Transformers](https://github.com/huggingface/transformers) (tokenizers for Whisper; installed with mlx-audio) | Apache-2.0 |
+| [resemble-enhance-mlx](https://huggingface.co/multimodalart/resemble-enhance-mlx) inference code, port of [resemble-enhance](https://github.com/resemble-ai/resemble-enhance) (vendored in `resources/engine/resemble_enhance_mlx/` with the memory and safety changes listed in its `__init__.py`; license included) | MIT, © 2023 Resemble AI |
 | [Stable Audio 3 MLX inference code](https://github.com/Stability-AI/stable-audio-3/tree/main/optimized/mlx) (vendored unmodified in `resources/engine/sa3/`, license included) | MIT, © 2026 Stability AI |
 
 ## Application

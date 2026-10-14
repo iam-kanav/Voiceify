@@ -18,7 +18,7 @@ import { usePlayerPadding } from '@/lib/useGenerate'
 
 type Filter = 'all' | 'installed' | 'recommended'
 
-const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'voice-cloning', 'voice-design', 'voice-fingerprints', 'transcription', 'sound-effects', 'community', 'custom']
+const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'voice-cloning', 'voice-design', 'voice-fingerprints', 'transcription', 'sound-effects', 'speech-enhancement', 'community', 'custom']
 const GRID = 'grid grid-cols-[minmax(220px,1.6fr)_76px_92px_92px_128px_292px] items-center gap-4'
 
 export default function Models() {
@@ -253,6 +253,7 @@ function FamilyPicker({ families, value, onChange }: { families: (Provider | und
                   <span className="truncate text-sm font-semibold">{p?.name ?? 'Community & custom'}</span>
                   {p?.task === 'asr' && <span className="text-[10px] text-ink-3">Speech to Text</span>}
                   {p?.task === 'sfx' && <span className="text-[10px] text-ink-3">Sound Effects</span>}
+                  {p?.task === 'enhance' && <span className="text-[10px] text-ink-3">Enhancement</span>}
                 </span>
                 <span className="block truncate text-[11.5px] text-ink-3">{p ? `${p.vendor} · ${p.tagline}` : 'Fine-tunes and your additions'}</span>
                 <span className={cn('mt-1 block text-[11px]', installed ? 'text-success' : 'text-ink-3')}>

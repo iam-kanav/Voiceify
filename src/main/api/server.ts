@@ -139,6 +139,26 @@ async function handle(req: IncomingMessage, res: ServerResponse, port: number) {
       return json(res, code, { error: e instanceof Error ? e.message : String(e) })
     }
   }
+  if (url.pathname === '/api/enhance' && req.method === 'POST') {
+    const b = ((await readBody(req)) ?? {}) as Record<string, unknown>
+    const num = (v: unknown) => (typeof v === 'number' ? v : undefined)
+    try {
+      if (typeof b.audio_path !== 'string') return json(res, 400, { error: 'Send {"audio_path": "/absolute/path/to/file.wav"}.' })
+      const item = await studio.enhanceAudio({
+        audio: b.audio_path,
+        mode: b.mode === 'denoise' ? 'denoise' : 'enhance',
+        modelId: typeof b.model === 'string' ? b.model : undefined,
+        settings: { nfe: num(b.steps), lambd: num(b.denoise_strength), tau: num(b.regeneration) },
+        source: 'api'
+      })
+      if (b.play === true) studio.playInApp(item.id)
+      if (url.searchParams.get('format') === 'wav') return sendAudio(res, item.audioPath)
+      return json(res, 200, { ...item, audio_url: `${baseUrl}/api/audio/${item.id}` })
+    } catch (e) {
+      const code = e instanceof studio.StudioError && e.code === 'no-model' ? 409 : 400
+      return json(res, code, { error: e instanceof Error ? e.message : String(e) })
+    }
+  }
   if (url.pathname === '/api/sound-effects' && req.method === 'POST') {
     const b = ((await readBody(req)) ?? {}) as Record<string, unknown>
     const num = (v: unknown) => (typeof v === 'number' ? v : undefined)

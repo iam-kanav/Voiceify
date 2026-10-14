@@ -89,6 +89,16 @@ const handlers: Handlers = {
         }
       }
     ),
+  enhanceAudio: (e, req) =>
+    studio.enhanceAudio(
+      { ...req, source: 'app' },
+      {
+        jobId: req.jobId,
+        onProgress: (step, total) => {
+          if (!e.sender.isDestroyed()) e.sender.send('studio:event:generationProgress', { jobId: req.jobId, step, total })
+        }
+      }
+    ),
   generateSoundEffect: (e, req) =>
     studio.generateSoundEffect(
       { ...req, source: 'app' },

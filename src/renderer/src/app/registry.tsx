@@ -1,6 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
 import {
   AudioLines,
+  AudioWaveform,
   Blocks,
   Bot,
   History,
@@ -85,6 +86,15 @@ export const FEATURES: Feature[] = [
     status: 'ready',
     description: 'Generate sound effects from text prompts',
     component: lazy(() => import('@/features/sound-effects'))
+  },
+  {
+    id: 'speech-enhancement',
+    label: 'Speech Enhancement',
+    icon: AudioWaveform,
+    section: 'playground',
+    status: 'ready',
+    description: 'Remove noise and restore the quality of speech recordings',
+    component: lazy(() => import('@/features/speech-enhancement'))
   },
   {
     id: 'history',

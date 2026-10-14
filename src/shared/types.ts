@@ -1,7 +1,7 @@
 // Types shared by the main process, preload bridge, renderer, and the local API/MCP server.
 
 /** A task is a kind of work the engine can do. New features (sound effects, video…) add new tasks. */
-export type Task = 'tts' | 'asr' | 'sfx'
+export type Task = 'tts' | 'asr' | 'sfx' | 'enhance'
 
 export type Capability =
   | 'preset-voices' // built-in speakers (CustomVoice)
@@ -13,6 +13,7 @@ export type Capability =
   | 'translate' // speech in any language → English text
   | 'fingerprint' // turns a saved voice into a speaker embedding the Built-in Voices model can use
   | 'sound-effects' // text → sound effects
+  | 'enhance-speech' // noisy / low-quality speech → clean speech
 
 export type Quant = '4bit' | '5bit' | '6bit' | '8bit' | 'bf16'
 
@@ -187,7 +188,7 @@ export interface Voice {
 
 // ---------- Generation ----------
 
-export type GenerationMode = 'preset' | 'clone' | 'design' | 'fingerprint' | 'sfx' | 'script'
+export type GenerationMode = 'preset' | 'clone' | 'design' | 'fingerprint' | 'sfx' | 'script' | 'enhance'
 
 export interface GenerationSettings {
   language: string // "auto" | "english" | …
@@ -234,6 +235,8 @@ export interface HistoryItem {
   saved?: boolean
   /** Sound effects: how this clip was made (`text` holds the prompt). */
   sfx?: SoundEffectSettings & { seed: number; variation: number; of: number }
+  /** Speech enhancement: how this clip was made (`text` holds the source file name). */
+  enhance?: EnhanceSettings & { mode: EnhanceMode; inputSec: number }
   /** Script mode: who said what, and when (`text` holds the whole script). */
   script?: { pauseSec: number; segments: ScriptPart[] }
 }
@@ -264,6 +267,32 @@ export interface ScriptRequest {
   /** Silence between speakers, in seconds (default 0.35). */
   pauseSec?: number
   stream?: boolean
+  source?: 'app' | 'mcp' | 'api'
+}
+
+// ---------- Speech enhancement ----------
+
+/** "enhance" = denoise, then restore quality and bandwidth (generative); "denoise" = remove noise only (fast). */
+export type EnhanceMode = 'enhance' | 'denoise'
+
+export interface EnhanceSettings {
+  /** ODE steps of the enhancer (its step count). Default 32. */
+  nfe: number
+  /** How much of the denoised signal the enhancer starts from (0 = none, 1 = only denoised). */
+  lambd: number
+  /** Prior temperature: how much the enhancer may regenerate (0 = conservative). */
+  tau: number
+  solver: 'midpoint' | 'euler'
+}
+
+export interface EnhanceRequest {
+  /** WAV bytes (any rate; mono or stereo) or a path to a local audio file. */
+  audio: Uint8Array | string
+  /** File name or "Recording", for display. */
+  name?: string
+  mode?: EnhanceMode
+  modelId?: string
+  settings?: Partial<EnhanceSettings>
   source?: 'app' | 'mcp' | 'api'
 }
 
