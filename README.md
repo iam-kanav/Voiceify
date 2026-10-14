@@ -30,7 +30,7 @@ Text to speech, voice design and voice cloning with multiple open-source AI mode
 - **Free to run.** No subscriptions or character quotas. Generate as much audio as your hardware allows.
 - **Several open models, one studio.** [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) for expressive speech in 10 languages, voice design and high-fidelity cloning; [Pocket TTS](https://huggingface.co/kyutai/pocket-tts) for tiny (140 MB), very fast English voices and cloning. Pick a model and the interface adapts to what it can do.
 - **Speech to text, too.** Transcribe any audio or video with [Qwen3-ASR](https://huggingface.co/collections/Qwen/qwen3-asr) or OpenAI [Whisper](https://huggingface.co/openai/whisper-large-v3), export subtitles, or translate speech into English.
-- **Voices travel between models.** Voices you clone or design are stored as a short reference recording, so any model that supports your own voices can speak them. Design a voice with Qwen3-TTS, then use it with Pocket TTS.
+- **Voices travel between models.** Voices you clone or design are stored as a short reference recording, so any model that supports your own voices can speak them. Design a voice with Qwen3-TTS, then use it with Pocket TTS. Each saved voice also gets a **voice fingerprint**, so Qwen3-TTS can speak it like a built-in voice and follow style instructions with it.
 - **Pick your trade-off.** Install the model sizes and precisions that suit your machine. Voiceify recommends a set based on your memory and shows the speed it actually measures on your computer.
 - **Built for agents.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Codex, Cursor and other assistants speak, design and clone voices.
 - **Made to grow.** Model providers and features plug into registries, so new model families and tools (sound effects, …) slot in cleanly.
@@ -140,10 +140,11 @@ Within Qwen3-TTS, each task uses its own model; Voiceify names them by what they
 
 | In Voiceify | Open-source model | What it's for |
 |---|---|---|
-| **Built-in Voices** · Large | Qwen3-TTS 1.7B CustomVoice | 9 voices with style instructions (emotion, tone, pace) |
+| **Built-in Voices** · Large | Qwen3-TTS 1.7B CustomVoice | 9 voices with style instructions (emotion, tone, pace); also speaks your saved voices from their fingerprint |
 | **Built-in Voices** · Small | Qwen3-TTS 0.6B CustomVoice | The same voices, faster and lighter, without style instructions |
 | **Voice Design** | Qwen3-TTS 1.7B VoiceDesign | Invents a voice from a written description |
 | **Voice Cloning** · Large / Small | Qwen3-TTS 1.7B / 0.6B Base | Copies a voice from audio; also speaks your saved designed voices |
+| **Voice Fingerprints** (24 MB, automatic) | Qwen3-TTS 1.7B speaker encoder (taken from the Base model) | Turns each saved voice into a fingerprint for Built-in Voices (Large) |
 | **Pocket TTS** | Kyutai Pocket TTS (100M) | Built-in voices and cloning in one tiny model |
 | **Qwen3-ASR** · Small / Large | Qwen3-ASR 0.6B / 1.7B | Speech to text in 30 languages; also auto-fills transcripts when cloning |
 | **Whisper** · Turbo / Large (optional) | OpenAI Whisper Large v3 Turbo (809M) / Large v3 (1.55B) | Speech to text in 99 languages with sentence timestamps; Large also translates into English |

@@ -1,7 +1,7 @@
 {
   "name": "voiceify",
   "productName": "Voiceify",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A private voice studio for your computer: text to speech, voice design and voice cloning with open-source AI models.",
   "keywords": [
     "text-to-speech",

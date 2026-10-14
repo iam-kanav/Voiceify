@@ -255,7 +255,7 @@ def handle_tts_generate(job: Job) -> Dict[str, Any]:
     # Everything except these is a model setting the main process mapped from the provider's
     # parameter list (temperature, top_p, lsd_decode_steps, …), so pass it straight through.
     reserved = {"model_path", "text", "out_path", "stream", "provider", "language", "voice", "instruct",
-                "ref_audio", "ref_text", "streaming_interval"}
+                "ref_audio", "ref_text", "streaming_interval", "speaker_embedding"}
     settings = {k: v for k, v in p.items() if k not in reserved and v is not None}
     pocket = p.get("provider") == "pocket-tts" or model_type(p["model_path"]) == "pocket_tts"
 
@@ -291,6 +291,10 @@ def handle_tts_generate(job: Job) -> Dict[str, Any]:
     except Exception:
         pass
 
+    restore = None
+    if p.get("speaker_embedding"):
+        kwargs["voice"], restore = use_fingerprint(model, p["speaker_embedding"])
+
     t0 = time.time()
     first_chunk_at = None
     pieces = []
@@ -311,6 +315,8 @@ def handle_tts_generate(job: Job) -> Dict[str, Any]:
                 job.emit("chunk", {"pcm": base64.b64encode(to_pcm16(audio)).decode("ascii"), "sr": sr})
     finally:
         gen.close()
+        if restore:
+            restore()
 
     if job.cancelled:
         return {"cancelled": True}
@@ -349,6 +355,97 @@ def write_wav(path: str, audio, sr: int) -> None:
     tmp = path + ".part"
     sf.write(tmp, audio, sr, subtype="PCM_16", format="WAV")
     os.replace(tmp, path)
+
+
+# --------------------------------------------------------------------------------------------
+# Voice fingerprints (Qwen3-TTS)
+#
+# A fingerprint is the speaker embedding Qwen3-TTS's speaker encoder computes from a recording.
+# The Built-in Voices (CustomVoice) model keeps its preset speakers as embeddings of exactly that
+# size, so a saved voice can stand in for a built-in one — and then follows style instructions.
+# --------------------------------------------------------------------------------------------
+
+_ENCODERS: Dict[str, Any] = {}
+
+
+def load_speaker_encoder(path: str):
+    if path in _ENCODERS:
+        return _ENCODERS[path]
+    from dataclasses import fields
+
+    from mlx_audio.tts.models.qwen3_tts.config import Qwen3TTSSpeakerEncoderConfig
+    from mlx_audio.tts.models.qwen3_tts.speaker_encoder import Qwen3TTSSpeakerEncoder
+
+    with open(os.path.join(path, "config.json"), encoding="utf-8") as f:
+        raw = json.load(f).get("speaker_encoder_config") or {}
+    names = {f.name for f in fields(Qwen3TTSSpeakerEncoderConfig)}
+    encoder = Qwen3TTSSpeakerEncoder(Qwen3TTSSpeakerEncoderConfig(**{k: v for k, v in raw.items() if k in names}))
+    weights = mx().load(os.path.join(path, "speaker_encoder.safetensors"))
+    prefix = "speaker_encoder."
+    encoder.load_weights([(k[len(prefix):] if k.startswith(prefix) else k, v) for k, v in weights.items()])
+    encoder.eval()
+    _ENCODERS.clear()
+    _ENCODERS[path] = encoder
+    return encoder
+
+
+def handle_voice_fingerprint(job: Job) -> Dict[str, Any]:
+    p = job.params
+    from mlx_audio.stt.utils import load_audio
+    from mlx_audio.tts.models.qwen3_tts.qwen3_tts import mel_spectrogram
+
+    encoder = load_speaker_encoder(p["encoder_path"])
+    audio = load_audio(p["audio_path"], sr=24000)
+    audio = audio[: 24000 * 30]
+    mels = mel_spectrogram(audio, n_fft=1024, num_mels=128, sample_rate=24000, hop_size=256, win_size=1024, fmin=0, fmax=12000)
+    vec = np().asarray(encoder(mels), dtype=np().float32).reshape(-1)
+    os.makedirs(os.path.dirname(p["out_path"]), exist_ok=True)
+    np().save(p["out_path"], vec)
+    return {"path": p["out_path"], "dim": int(vec.size)}
+
+
+def use_fingerprint(model, path: str):
+    """Make a Built-in Voices model speak a saved voice: one preset speaker's embedding is swapped
+    for the fingerprint, only while the prompt is built. Returns (speaker name, restore fn)."""
+    talker_cfg = getattr(getattr(model, "config", None), "talker_config", None)
+    spk = dict(getattr(talker_cfg, "spk_id", None) or {})
+    if not spk:
+        raise RuntimeError("This model can't use voice fingerprints. Pick a Built-in Voices model.")
+    vec = np().load(path).astype(np().float32).reshape(1, 1, -1)
+    if vec.shape[-1] != int(talker_cfg.hidden_size):
+        raise RuntimeError("This voice's fingerprint is for a different model size. Use Built-in Voices (Large).")
+    dialects = getattr(talker_cfg, "spk_is_dialect", None) or {}
+    name = "ryan" if "ryan" in spk else next(k for k in spk if not dialects.get(k))
+    target = spk[name]
+    injected = mx().array(vec)
+    original_prepare = model._prepare_generation_inputs
+
+    def prepare(*args, **kw):
+        original_embed = model.talker.get_input_embeddings
+
+        def patched():
+            embed = original_embed()
+
+            def call(ids):
+                out = embed(ids)
+                if tuple(ids.shape) == (1, 1) and int(ids[0, 0]) == target:
+                    return injected.astype(out.dtype)
+                return out
+
+            return call
+
+        model.talker.get_input_embeddings = patched
+        try:
+            return original_prepare(*args, **kw)
+        finally:
+            model.talker.get_input_embeddings = original_embed
+
+    model._prepare_generation_inputs = prepare
+
+    def restore():
+        model._prepare_generation_inputs = original_prepare
+
+    return name, restore
 
 
 def handle_asr_transcribe(job: Job) -> Dict[str, Any]:
@@ -448,6 +545,7 @@ def handle_warmup(job: Job) -> Dict[str, Any]:
 HANDLERS: Dict[str, Callable[[Job], Dict[str, Any]]] = {
     "tts.generate": handle_tts_generate,
     "asr.transcribe": handle_asr_transcribe,
+    "voice.fingerprint": handle_voice_fingerprint,
     "models.convert": handle_convert,
     "models.load": handle_load,
     "models.unload": handle_unload,

@@ -12,6 +12,7 @@ import { voices } from '../library/voices'
 import { models } from '../models/manager'
 import { paths } from '../paths'
 import { getSettings } from '../settings'
+import { fingerprintModels, hasFingerprint } from './fingerprints'
 
 /**
  * High-level studio operations. The renderer (IPC), the REST API and the MCP server all go
@@ -25,6 +26,7 @@ const CAP_NEEDS: Record<Capability, { task: string; model: string }> = {
   'voice-design': { task: 'design voices', model: 'Voice Design' },
   'voice-clone': { task: 'clone voices or use your saved voices', model: 'Voice Cloning' },
   'emotion-tags': { task: 'use emotion tags', model: 'Emotion Tags' },
+  fingerprint: { task: 'make voice fingerprints', model: 'Voice Fingerprints' },
   transcribe: { task: 'transcribe audio', model: 'Speech to Text' },
   translate: { task: 'translate speech into English', model: 'Whisper Large' }
 }
@@ -156,17 +158,52 @@ function plan(req: GenerateRequest, settings: GenerationSettings): Plan {
     }
   }
 
-  // Saved designed voices replay through a cloning model (consistent timbre). Only Qwen3-TTS can
-  // fall back to re-creating them from their description when it has no cloning model.
+  // Your own voices can be spoken three ways (Qwen3-TTS):
+  //  • fingerprint → Built-in Voices (Large) speaks it like a built-in voice; follows style instructions
+  //  • clone       → Voice Cloning copies it from the reference recording (closest match)
+  //  • design      → re-created from its description (designed voices, last resort)
+  // Automatic: fingerprint when there are style instructions or no cloning model; otherwise clone.
   const canClone = models.installedWith('voice-clone', provider.id).length > 0
+  const explicit = ref.modelId ? models.get(ref.modelId) : undefined
+  const fpModels = provider.id === 'qwen3-tts' ? fingerprintModels() : []
+  if (explicit?.capabilities.includes('preset-voices') && provider.id === 'qwen3-tts') {
+    if (!fpModels.some((m) => m.id === explicit.id)) {
+      throw new StudioError(`Your own voices work with Built-in Voices (Large). ${explicit.name} can’t speak them.`)
+    }
+    if (!hasFingerprint(voice)) {
+      throw new StudioError(`“${voice.name}” is still being prepared for Built-in Voices. Try again in a moment, or pick Voice Cloning.`)
+    }
+  }
+  const instruct = settings.instruct?.trim()
+  const useFingerprint =
+    hasFingerprint(voice) &&
+    fpModels.length > 0 &&
+    (explicit ? explicit.capabilities.includes('preset-voices') : !!instruct || !canClone)
+  if (useFingerprint) {
+    const fallback = models.resolve('preset-voices', undefined, provider.id)
+    const model = (explicit && fpModels.find((m) => m.id === explicit.id)) || fpModels.find((m) => m.id === fallback?.id) || fpModels[0]
+    return {
+      mode: 'fingerprint',
+      model,
+      provider,
+      voice,
+      voiceName: voice.name,
+      values,
+      params: { ...args, speaker_embedding: voice.fingerprint, instruct: instruct || undefined }
+    }
+  }
+
   const wantsDesign =
     voice.kind === 'designed' &&
     !!voice.designPrompt &&
     provider.features.voiceDesign &&
-    (models.get(ref.modelId ?? '')?.capabilities.includes('voice-design') || !canClone)
+    (explicit?.capabilities.includes('voice-design') || !canClone)
   if (wantsDesign) {
     const model = requireModel('voice-design', ref.modelId, provider)
     return { mode: 'design', model, provider, voice, voiceName: voice.name, values, params: { ...args, instruct: voice.designPrompt } }
+  }
+  if (!canClone && fpModels.length && !hasFingerprint(voice) && !explicit) {
+    throw new StudioError(`“${voice.name}” is still being prepared for Built-in Voices. Try again in a moment.`)
   }
 
   const model = requireModel('voice-clone', ref.modelId, provider)

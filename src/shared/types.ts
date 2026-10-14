@@ -11,6 +11,7 @@ export type Capability =
   | 'emotion-tags' // inline [Happy] style tags (fine-tunes)
   | 'transcribe' // speech → text
   | 'translate' // speech in any language → English text
+  | 'fingerprint' // turns a saved voice into a speaker embedding the Built-in Voices model can use
 
 export type Quant = '4bit' | '5bit' | '6bit' | '8bit' | 'bf16'
 
@@ -27,6 +28,8 @@ export interface ExtraFile {
 export type ModelSource =
   | { type: 'hf-mlx'; repo: string; extras?: ExtraFile[] } // ready-to-run MLX weights
   | { type: 'hf-convert'; repo: string; qBits?: 4 | 6 | 8; extras?: ExtraFile[] } // PyTorch weights converted locally
+  /** Only the tensors starting with `prefix` from one safetensors file (plus config.json), fetched with ranged requests. */
+  | { type: 'hf-tensors'; repo: string; revision?: string; file: string; prefix: string; saveAs: string; extras?: ExtraFile[] }
 
 /** A setting a provider understands, with a plain-language explanation. Rendered as a slider. */
 export interface ParamSpec {
@@ -168,6 +171,11 @@ export interface Voice {
   refText?: string
   /** Natural-language description used by VoiceDesign. */
   designPrompt?: string
+  /**
+   * Voice fingerprint (speaker embedding, .npy) that lets Qwen3-TTS Built-in Voices (Large) speak
+   * this voice like a built-in one, including style instructions. Made automatically.
+   */
+  fingerprint?: string
   /** Optional preview clip. */
   previewAudio?: string
   colors: [string, string]
@@ -176,7 +184,7 @@ export interface Voice {
 
 // ---------- Generation ----------
 
-export type GenerationMode = 'preset' | 'clone' | 'design'
+export type GenerationMode = 'preset' | 'clone' | 'design' | 'fingerprint'
 
 export interface GenerationSettings {
   language: string // "auto" | "english" | …

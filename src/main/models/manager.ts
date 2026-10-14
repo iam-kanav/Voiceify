@@ -171,7 +171,8 @@ class ModelManager {
     const downloadDir = model.source.type === 'hf-convert' ? join(paths.tmp, `convert-${id}`) : `${finalDir}.partial`
 
     try {
-      await this.downloadRepo(id, model.source.repo, downloadDir, ctrl.signal, model.source.extras)
+      if (model.source.type === 'hf-tensors') await this.downloadTensors(id, model.source, downloadDir, ctrl.signal)
+      else await this.downloadRepo(id, model.source.repo, downloadDir, ctrl.signal, model.source.extras)
       if (model.source.type === 'hf-convert') {
         this.setTransient(id, { status: 'converting', message: 'Converting to MLX (this can take a few minutes)…' })
         rmSync(finalDir, { recursive: true, force: true })
@@ -290,6 +291,99 @@ class ModelManager {
     return entries
       .filter((e) => e.type === 'file' && !SKIP.some((r) => r.test(e.path)))
       .map((e) => ({ path: e.path, size: e.size ?? 0 }))
+  }
+
+  /**
+   * Fetch only some tensors of a safetensors file (e.g. a 24 MB speaker encoder inside a 3 GB
+   * model) with ranged reads, and write them as a small safetensors file plus config.json. Reads
+   * from an installed model with the same repo file when there is one, so nothing is downloaded.
+   */
+  private async downloadTensors(
+    id: string,
+    src: Extract<ModelVariant['source'], { type: 'hf-tensors' }>,
+    dir: string,
+    signal: AbortSignal
+  ) {
+    mkdirSync(dir, { recursive: true })
+    const rev = src.revision ?? 'main'
+    const url = (path: string) => `${HF}/${src.repo}/resolve/${rev}/${path}`
+    const sameSize = (repo: string) => repo.replace(/-(bf16|\d+bit)$/, '') === src.repo.replace(/-(bf16|\d+bit)$/, '')
+    const local = this.variants()
+      .filter((m) => m.source.type === 'hf-mlx' && sameSize(m.source.repo) && this.installedPath(m.id))
+      .map((m) => this.installedPath(m.id)!)
+      .find((p) => existsSync(join(p, src.file)))
+
+    const fh = local ? await open(join(local, src.file), 'r') : null
+    const read = async (start: number, end: number): Promise<Buffer> => {
+      if (fh) {
+        const buf = Buffer.alloc(end - start)
+        await fh.read(buf, 0, buf.length, start)
+        return buf
+      }
+      const res = await fetch(url(src.file), { headers: { Range: `bytes=${start}-${end - 1}` }, signal })
+      if (res.status !== 206 && res.status !== 200) throw new Error(`Hugging Face returned ${res.status} for ${src.repo}`)
+      const buf = Buffer.from(await res.arrayBuffer())
+      if (buf.length !== end - start) throw new Error('Download was cut short. Try again.')
+      return buf
+    }
+
+    try {
+      const headerLen = Number((await read(0, 8)).readBigUInt64LE(0))
+      const header = JSON.parse((await read(8, 8 + headerLen)).toString('utf8')) as Record<string, { dtype: string; shape: number[]; data_offsets: [number, number] }>
+      const base = 8 + headerLen
+      const picks = Object.entries(header)
+        .filter(([k]) => k.startsWith(src.prefix))
+        .sort((a, b) => a[1].data_offsets[0] - b[1].data_offsets[0])
+      if (!picks.length) throw new Error(`No ${src.prefix} tensors found in ${src.repo}.`)
+      const total = picks.reduce((n, [, t]) => n + t.data_offsets[1] - t.data_offsets[0], 0)
+
+      // Merge neighbouring tensors into a few larger reads.
+      const spans: { start: number; end: number; items: typeof picks }[] = []
+      for (const p of picks) {
+        const [a, b] = p[1].data_offsets
+        const last = spans[spans.length - 1]
+        if (last && a - last.end < 256 * 1024) {
+          last.end = Math.max(last.end, b)
+          last.items.push(p)
+        } else spans.push({ start: a, end: b, items: [p] })
+      }
+
+      const out: Record<string, unknown> = {}
+      const chunks: Buffer[] = []
+      let offset = 0
+      let received = 0
+      const t0 = Date.now()
+      for (const span of spans) {
+        if (signal.aborted) throw new Error('Cancelled')
+        const buf = await read(base + span.start, base + span.end)
+        for (const [name, t] of span.items) {
+          const piece = buf.subarray(t.data_offsets[0] - span.start, t.data_offsets[1] - span.start)
+          out[name] = { dtype: t.dtype, shape: t.shape, data_offsets: [offset, offset + piece.length] }
+          chunks.push(piece)
+          offset += piece.length
+          received += piece.length
+        }
+        const secs = Math.max(0.001, (Date.now() - t0) / 1000)
+        this.setTransient(id, { status: 'downloading', received, total, bytesPerSec: received / secs, file: src.saveAs })
+      }
+
+      let json = JSON.stringify(out)
+      json += ' '.repeat((8 - (Buffer.byteLength(json) % 8)) % 8)
+      const len = Buffer.alloc(8)
+      len.writeBigUInt64LE(BigInt(Buffer.byteLength(json)))
+      writeFileSync(join(dir, src.saveAs), Buffer.concat([len, Buffer.from(json, 'utf8'), ...chunks]))
+
+      let config: Buffer
+      if (local) config = readFileSync(join(local, 'config.json'))
+      else {
+        const res = await fetch(url('config.json'), { signal })
+        if (!res.ok) throw new Error(`Hugging Face returned ${res.status} for ${src.repo}`)
+        config = Buffer.from(await res.arrayBuffer())
+      }
+      writeFileSync(join(dir, 'config.json'), config)
+    } finally {
+      await fh?.close()
+    }
   }
 
   private async downloadRepo(id: string, repo: string, dir: string, signal: AbortSignal, extras: ExtraFile[] = []) {

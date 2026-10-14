@@ -31,7 +31,7 @@ import { useApp } from '@/stores/app'
 import { currentParams, useTts } from '@/stores/tts'
 import { playHistoryItem, usePlayer } from '@/stores/player'
 import { useGenerate, usePlayerPadding } from '@/lib/useGenerate'
-import { capabilityFor, compatibleModels, resolveModel } from '@/lib/models'
+import { autoModel, capabilityFor, compatibleModels, fingerprintModels } from '@/lib/models'
 import { cn, dayLabel, formatTime, studio } from '@/lib/api'
 
 const STARTERS = [
@@ -67,8 +67,17 @@ export default function TextToSpeech() {
   const voice = usableVoices.find((v) => v.id === tts.voiceByProvider[provider.id]) ?? usableVoices.find((v) => v.kind === 'preset') ?? usableVoices[0]
   const cap = capabilityFor(voice, models, provider.id)
   const options = compatibleModels(voice, models, provider.id)
-  const active = options.find((m) => m.id === modelId) ?? resolveModel(cap, models, undefined, appSettings?.defaultModels, provider.id)
-  const supportsInstruct = provider.features.styleInstructions && voice?.kind === 'preset' && !!active?.capabilities.includes('instruct')
+  const active = options.find((m) => m.id === modelId) ?? autoModel(voice, models, provider.id, instruct, appSettings?.defaultModels)
+  const ownVoice = !!voice && voice.kind !== 'preset'
+  // Your own voices follow style instructions through their fingerprint (Built-in Voices, Large).
+  const fpModels = fingerprintModels(voice, models, provider.id)
+  const fpReady = ownVoice && !!voice?.fingerprint && fpModels.length > 0
+  const supportsInstruct =
+    provider.features.styleInstructions &&
+    !!active?.capabilities.includes('instruct') &&
+    (voice?.kind === 'preset' || (fpReady && active.capabilities.includes('preset-voices')))
+  // Typing instructions is what switches an own voice to its fingerprint, so keep the box usable.
+  const instructEditable = supportsInstruct || (fpReady && modelId === 'auto')
   const mainParams = provider.params.filter((p) => !p.advanced)
   const advancedParams = provider.params.filter((p) => p.advanced)
   const supportsTags = !!active?.capabilities.includes('emotion-tags')
@@ -229,32 +238,33 @@ export default function TextToSpeech() {
                   <ModelChooser provider={provider.id} voice={voice} cap={cap} options={options} active={active} value={modelId} onChange={setModel} />
 
                   {provider.features.styleInstructions &&
-                    (voice?.kind === 'preset' ? (
+                    (voice?.kind === 'preset' || fpReady ? (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="flex items-center gap-1.5 text-[13px] font-medium">
                             Style instructions
                             <InfoTip>
-                              Tell the voice how to speak in plain words: emotion, tone, pace, volume. {provider.name} follows them with its Large
-                              built-in voices model; the Small one ignores them.
+                              {ownVoice
+                                ? 'Tell the voice how to speak in plain words: emotion, tone, pace, volume. For your own voices, Voiceify switches to the Large Built-in Voices model, which keeps the voice and follows your direction.'
+                                : `Tell the voice how to speak in plain words: emotion, tone, pace, volume. ${provider.name} follows them with its Large built-in voices model; the Small one ignores them.`}
                             </InfoTip>
                           </span>
-                          {!supportsInstruct && active && <Badge tone="amber">Needs the Large version</Badge>}
+                          {!instructEditable && active && <Badge tone="amber">{ownVoice ? 'Needs Built-in Voices' : 'Needs the Large version'}</Badge>}
                         </div>
                         <Textarea
                           rows={2}
-                          disabled={!supportsInstruct}
+                          disabled={!instructEditable}
                           value={instruct}
                           onChange={(e) => setInstruct(e.target.value)}
                           placeholder="e.g. Speak warmly and a little faster, with a hint of excitement"
                           className="disabled:opacity-50"
                         />
-                        {supportsInstruct && (
+                        {instructEditable && (
                           <div className="flex flex-wrap gap-1.5">
                             {INSTRUCT_PRESETS.slice(0, 6).map((p) => (
                               <button
                                 key={p}
-                                onClick={() => setInstruct(p)}
+                                onClick={() => setInstruct(instruct === p ? '' : p)}
                                 className={cn(
                                   'rounded-full border px-2.5 py-1 text-[11.5px] transition-colors',
                                   instruct === p ? 'border-ink bg-ink text-canvas' : 'border-line text-ink-2 hover:bg-muted'
@@ -271,11 +281,13 @@ export default function TextToSpeech() {
                           </p>
                         )}
                       </div>
-                    ) : (
+                    ) : ownVoice ? (
                       <p className="rounded-xl bg-subtle px-3 py-2.5 text-xs text-ink-3">
-                        Style instructions work with built-in voices. Your own voices keep the delivery of their reference recording.
+                        {fpModels.length
+                          ? 'Getting this voice ready for style instructions…'
+                          : 'Your own voices can follow style instructions too once Built-in Voices (Large) is installed.'}
                       </p>
-                    ))}
+                    ) : null)}
 
                   {provider.languages.length > 1 && (
                     <div className="space-y-2">

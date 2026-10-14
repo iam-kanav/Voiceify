@@ -16,7 +16,7 @@ import { useApp } from '@/stores/app'
 import { selectVoiceById } from '@/stores/tts'
 import { usePlayer } from '@/stores/player'
 import { cn, formatTime, studio, uid } from '@/lib/api'
-import { isInstalled, recommendedFor } from '@/lib/models'
+import { canSpeakOwnVoices, isInstalled, recommendedFor } from '@/lib/models'
 import { InfoTip } from '@/components/InfoTip'
 import { PortabilityNote } from './PortabilityNote'
 import { usePlayerPadding } from '@/lib/useGenerate'
@@ -321,7 +321,7 @@ function SaveVoiceModal({
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const models = useApp((s) => s.models)
-  const canClone = models.some((m) => isInstalled(m) && m.capabilities.includes('voice-clone'))
+  const canClone = canSpeakOwnVoices(models)
   const cloneModel = recommendedFor('voice-clone', models)
   const save = async () => {
     if (!preview?.item) return
@@ -361,8 +361,8 @@ function SaveVoiceModal({
         <div className="mt-4 rounded-xl bg-amber-500/10 p-3 text-[13px] text-amber-800 dark:text-amber-300">
           <div className="font-medium">To keep this exact voice, also install Voice Cloning</div>
           <p className="mt-0.5 opacity-90">
-            Saved voices are spoken by the Voice Cloning model, which copies this take. Without it, the voice is re-created from your description each
-            time and will sound a little different.
+            Saved voices are spoken by Voice Cloning or Built-in Voices (Large), which keep this exact take. Without either, the voice is re-created
+            from your description each time and will sound a little different.
           </p>
           {cloneModel && cloneModel.install.status === 'not-installed' && (
             <Button size="sm" variant="outline" className="mt-2" onClick={() => studio.installModel(cloneModel.id)}>

@@ -8,6 +8,7 @@ import { engine } from './engine/client'
 import { models } from './models/manager'
 import { history } from './library/history'
 import { transcripts } from './library/transcripts'
+import { initFingerprints } from './services/fingerprints'
 import { startApiServer, stopApiServer } from './api/server'
 import { getSettings } from './settings'
 import { JsonStore } from './store'
@@ -138,6 +139,7 @@ if (!gotLock) {
     registerIpc()
     createWindow()
     await startApiServer()
+    initFingerprints()
     engine.boot()
     models.resumePending()
   })

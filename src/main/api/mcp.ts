@@ -87,7 +87,8 @@ export function createMcpServer(baseUrl: string) {
           description: v.description,
           language: v.language,
           gender: v.gender,
-          works_with: providersForVoice(v).map((p) => p.id)
+          works_with: providersForVoice(v).map((p) => p.id),
+          ...(v.kind !== 'preset' && { follows_instructions: !!v.fingerprint })
         }))
       return text(JSON.stringify(list, null, 2))
     }
@@ -130,7 +131,7 @@ export function createMcpServer(baseUrl: string) {
         instructions: z
           .string()
           .optional()
-          .describe('Style/emotion/pace instructions, e.g. "Very happy, speak quickly" (built-in voices; needs an instruction-capable model such as Built-in Voices Large)'),
+          .describe('Style/emotion/pace instructions, e.g. "Very happy, speak quickly" (Qwen3-TTS: built-in voices, and your own voices via their fingerprint; needs Built-in Voices Large)'),
         language: z.enum(LANG_IDS).optional().describe('Language (default auto-detect; single-language models ignore it)'),
         provider: z
           .string()

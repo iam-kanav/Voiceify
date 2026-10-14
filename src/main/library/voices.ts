@@ -85,6 +85,12 @@ class VoiceLibrary {
     return updated
   }
 
+  /** Record a voice's fingerprint (made in the background, see services/fingerprints.ts). */
+  setFingerprint(id: string, path: string) {
+    this.store.update((list) => list.map((v) => (v.id === id ? { ...v, fingerprint: path } : v)))
+    bus.publish('voicesChanged', null)
+  }
+
   remove(id: string) {
     if (id.startsWith('preset:')) throw new Error('Built-in voices can’t be deleted.')
     this.store.update((list) => list.filter((v) => v.id !== id))

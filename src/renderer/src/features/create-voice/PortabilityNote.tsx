@@ -2,7 +2,7 @@ import { Check } from 'lucide-react'
 import { PROVIDER_BY_ID, TTS_PROVIDERS } from '@shared/providers'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { useApp } from '@/stores/app'
-import { isInstalled } from '@/lib/models'
+import { canSpeakOwnVoices } from '@/lib/models'
 import { cn } from '@/lib/api'
 
 /**
@@ -14,7 +14,7 @@ export function PortabilityNote({ mode }: { mode: 'design' | 'clone' }) {
   const models = useApp((s) => s.models)
   const designer = PROVIDER_BY_ID.get('qwen3-tts')!
   const cloners = TTS_PROVIDERS.filter((p) => p.features.voiceCloning)
-  const ready = (id: string) => models.some((m) => m.provider === id && isInstalled(m) && m.capabilities.includes('voice-clone'))
+  const ready = (id: string) => canSpeakOwnVoices(models, id)
   return (
     <div className="rounded-2xl border border-line p-4">
       {mode === 'design' ? (

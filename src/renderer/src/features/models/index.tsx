@@ -18,7 +18,7 @@ import { usePlayerPadding } from '@/lib/useGenerate'
 
 type Filter = 'all' | 'installed' | 'recommended'
 
-const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'voice-cloning', 'voice-design', 'transcription', 'community', 'custom']
+const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'voice-cloning', 'voice-design', 'voice-fingerprints', 'transcription', 'community', 'custom']
 const GRID = 'grid grid-cols-[minmax(220px,1.6fr)_76px_92px_92px_128px_292px] items-center gap-4'
 
 export default function Models() {
@@ -374,6 +374,8 @@ function ModelRow({ model: m }: { model: ModelInfo }) {
   const s = m.install
   const primary = m.capabilities[0]
   const isDefault = settings?.defaultModels[primary] === m.id
+  // Helpers (e.g. Voice Fingerprints) aren't picked or measured; they just need to be there.
+  const helper = m.capabilities.includes('fingerprint')
   const install = () => studio.installModel(m.id).catch((e) => toast.error('Download failed', errorMessage(e)))
   const [confirmDelete, setConfirmDelete] = useState(false)
   const models = useApp((st) => st.models)
@@ -409,10 +411,10 @@ function ModelRow({ model: m }: { model: ModelInfo }) {
         </div>
       </div>
       <span className="text-sm tabular-nums text-ink-2">{formatBytes(m.sizeBytes)}</span>
-      <Meter value={m.quality} />
-      <Meter value={m.speed} />
+      {helper ? <span /> : <Meter value={m.quality} />}
+      {helper ? <span /> : <Meter value={m.speed} />}
       <span className="text-xs text-ink-3">
-        {m.localSpeed ? `${m.localSpeed.speedup.toFixed(1)}× real time` : s.status === 'installed' ? 'Generate to measure' : '—'}
+        {helper ? '' : m.localSpeed ? `${m.localSpeed.speedup.toFixed(1)}× real time` : s.status === 'installed' ? 'Generate to measure' : '—'}
       </span>
       <div className="flex items-center justify-end gap-1.5">
         {s.status === 'not-installed' && (
@@ -463,7 +465,7 @@ function ModelRow({ model: m }: { model: ModelInfo }) {
         )}
         {s.status === 'installed' && (
           <>
-            {!isDefault && m.task === 'tts' && (
+            {!isDefault && !helper && m.task === 'tts' && (
               <span className="flex items-center gap-1">
                 <Button
                   size="sm"

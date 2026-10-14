@@ -12,7 +12,7 @@ import { selectVoiceById } from '@/stores/tts'
 import { usePlayer } from '@/stores/player'
 import { cn, formatTime, studio, uid } from '@/lib/api'
 import { decodeToMono, encodeWav, normalize, peaks as computePeaks, TARGET_SR, trimSilence } from '@/lib/wav'
-import { isInstalled } from '@/lib/models'
+import { canSpeakOwnVoices, isInstalled } from '@/lib/models'
 import { usePlayerPadding } from '@/lib/useGenerate'
 import { PortabilityNote } from './PortabilityNote'
 import { Dropzone, Recorder } from '@/components/AudioInput'
@@ -49,7 +49,7 @@ const setSavedId = (savedId: string | null) => useClone.setState({ savedId })
 export function ClonePanel() {
   const models = useApp((s) => s.models)
   const navigate = useApp((s) => s.navigate)
-  const hasClone = models.some((m) => isInstalled(m) && m.capabilities.includes('voice-clone'))
+  const hasClone = canSpeakOwnVoices(models)
   const hasAsr = models.some((m) => isInstalled(m) && m.capabilities.includes('transcribe'))
   const asrModel = models.find((m) => m.id === 'qwen3-asr-0.6b-8bit')
   const { name, nameAuto, description, transcript, clip, savedId } = useClone()
@@ -162,7 +162,7 @@ export function ClonePanel() {
                 <p className="mt-1 text-sm text-ink-3">
                   {hasClone
                     ? 'Find it in Voices. Connected AI apps (Agents & MCP) can use it too.'
-                    : 'You can use it as soon as the Voice Cloning model finishes downloading.'}
+                    : 'You can use it once Voice Cloning or Built-in Voices (Large) is installed.'}
                 </p>
                 <div className="mt-5 flex justify-center gap-2">
                   <Button variant="outline" onClick={reset}>
@@ -248,7 +248,7 @@ export function ClonePanel() {
                   {transcribing ? 'Transcribing…' : 'Save cloned voice'}
                 </Button>
                 {!hasClone && clip && (
-                  <p className="-mt-3 text-center text-xs text-ink-3">You can save now and use the voice once the Voice Cloning model is installed.</p>
+                  <p className="-mt-3 text-center text-xs text-ink-3">You can save now and use the voice once Voice Cloning or Built-in Voices (Large) is installed.</p>
                 )}
               </motion.div>
             )}

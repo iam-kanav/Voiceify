@@ -58,6 +58,11 @@ export const ROLES: Record<string, { label: string; blurb: string; why: string }
     blurb: 'One small model speaks the built-in voices and clones yours.',
     why: 'Everything Pocket TTS does comes in a single download. Pick a precision; 8-bit is the sweet spot.'
   },
+  'voice-fingerprints': {
+    label: 'Voice Fingerprints',
+    blurb: 'Lets the Large Built-in Voices model speak the voices you create.',
+    why: 'A small helper Voiceify downloads automatically. It captures what makes each saved voice sound like itself, so Built-in Voices (Large) can speak it with style instructions, without the Voice Cloning model.'
+  },
   community: {
     label: 'Community Fine-tunes',
     blurb: 'Variants trained by the open-source community for special skills.',
@@ -228,6 +233,38 @@ const pocket: ModelVariant[] = POCKET.map(([q, repo, size, quality, summary]) =>
   }
 })
 
+/** Qwen3-TTS's speaker encoder, taken out of the Large Voice Cloning model (24 MB of a 3 GB file). */
+export const FINGERPRINT_HELPER_ID = 'qwen3-tts-voice-fingerprints'
+
+const fingerprints: ModelVariant = {
+  id: FINGERPRINT_HELPER_ID,
+  provider: 'qwen3-tts',
+  name: 'Voice Fingerprints · Large',
+  family: 'Voice Fingerprints',
+  familyId: 'qwen3-tts-voice-fingerprints',
+  role: 'Voice Fingerprints',
+  roleId: 'voice-fingerprints',
+  sizeLabel: 'Large',
+  precisionLabel: 'Full precision',
+  summary: 'Downloaded automatically when needed',
+  officialName: 'Qwen3-TTS 1.7B speaker encoder (from the Base model)',
+  task: 'tts',
+  capabilities: ['fingerprint'],
+  params: '1.7B',
+  quant: 'bf16',
+  source: {
+    type: 'hf-tensors',
+    repo: 'mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit',
+    revision: 'e7dd0585652209fa0d7783659aad4e8a324de11c',
+    file: 'model.safetensors', prefix: 'speaker_encoder.', saveAs: 'speaker_encoder.safetensors' },
+  sizeBytes: 24_016_520,
+  quality: 5,
+  speed: 5,
+  minRamGB: 1,
+  description: 'Lets Built-in Voices (Large) speak the voices you design or clone, and follow style instructions with them.',
+  tags: ['Helper']
+}
+
 const helpers: ModelVariant[] = [
   {
     id: 'qwen3-asr-0.6b-8bit',
@@ -378,7 +415,7 @@ const community: ModelVariant[] = [
   }
 ]
 
-export const CATALOG: ModelVariant[] = [...official, ...pocket, ...helpers, ...whisper, ...community]
+export const CATALOG: ModelVariant[] = [...official, fingerprints, ...pocket, ...helpers, ...whisper, ...community]
 
 export const CATALOG_BY_ID = new Map(CATALOG.map((m) => [m.id, m]))
 

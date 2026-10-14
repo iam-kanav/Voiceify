@@ -45,6 +45,15 @@ export function ModelChooser({
   const [open, setOpen] = useState(false)
   const btn = useRef<HTMLButtonElement>(null)
   const multiRole = new Set(options.map((o) => o.roleId)).size > 1
+  const own = !!voice && voice.kind !== 'preset'
+  // Your own voices can be spoken two ways; describe each by what it does for this voice.
+  const howItSpeaks = (m: ModelInfo) =>
+    own && m.roleId === 'built-in-voices'
+      ? 'Speaks it like a built-in voice · follows style instructions'
+      : own && m.roleId === 'voice-cloning'
+        ? 'Copies it from its recording · closest match'
+        : null
+  const twoWays = own && options.some((o) => o.roleId === 'built-in-voices') && options.some((o) => o.roleId === 'voice-cloning')
   // Named sizes ("Large", "Small", "Turbo") are worth showing; parameter counts ("100M") aren't.
   const sized = (m: ModelInfo) => !!m.sizeLabel && !/^\d/.test(m.sizeLabel)
   const label = (m: ModelInfo) =>
@@ -57,7 +66,9 @@ export function ModelChooser({
           ? 'Which installed version of this model speaks built-in voices.'
           : voice?.kind === 'designed' && cap === 'voice-design'
             ? 'No cloning model is installed for this family, so this voice is re-created from its description each time (it may sound a little different).'
-            : 'Your own voices are spoken by a cloning model, which copies the voice from its reference recording.'}
+            : twoWays
+              ? 'Your own voices can be spoken two ways. Voice Cloning copies the voice from its recording, for the closest match. Built-in Voices (Large) speaks it like one of its own voices, so it can follow style instructions.'
+              : 'Your own voices are spoken from their saved recording.'}
       </p>
       <p className="mt-1.5 opacity-80">{SIZE_HELP}</p>
       <p className="mt-1.5 opacity-80">{PRECISION_HELP}</p>
@@ -92,7 +103,7 @@ export function ModelChooser({
             Running <b className="font-medium text-ink">{m.name}</b>
             <InfoTip width={320}>{help}</InfoTip>
           </div>
-          <div className="mt-0.5 text-ink-3">{m.officialName}</div>
+          <div className="mt-0.5 text-ink-3">{howItSpeaks(m) ?? m.officialName}</div>
           {speed && <div className="text-ink-3">{speed}</div>}
         </div>
         <button onClick={() => navigate('models', provider ? { family: provider } : undefined)} className="shrink-0 text-xs text-ink-3 hover:text-ink">
@@ -128,7 +139,11 @@ export function ModelChooser({
               <Sparkles className="size-3.5" /> Automatic
             </span>
           }
-          subtitle={`Uses your default model (★ on the Models page), otherwise the one recommended for this computer. Right now: ${active ? label(active) : '—'}.`}
+          subtitle={
+            twoWays
+              ? `Uses Built-in Voices when you add style instructions, otherwise Voice Cloning. Right now: ${active ? label(active) : '—'}.`
+              : `Uses your default model (★ on the Models page), otherwise the one recommended for this computer. Right now: ${active ? label(active) : '—'}.`
+          }
           onClick={() => {
             onChange('auto')
             setOpen(false)
@@ -142,11 +157,11 @@ export function ModelChooser({
             title={
               <span className="flex items-center gap-1.5">
                 {label(m)}
-                {m.recommended && <Badge tone="green">Recommended</Badge>}
+                {m.recommended && !howItSpeaks(m) && <Badge tone="green">Recommended</Badge>}
                 {defaults?.[`${m.provider}/${cap}`] === m.id && <span title="Your default">★</span>}
               </span>
             }
-            subtitle={`${m.summary}${multiRole ? ` · ${ROLES[m.roleId]?.blurb ?? ''}` : ''}`}
+            subtitle={howItSpeaks(m) ?? `${m.summary}${multiRole ? ` · ${ROLES[m.roleId]?.blurb ?? ''}` : ''}`}
             meta={`${m.officialName}${m.localSpeed ? ` · ${m.localSpeed.speedup.toFixed(1)}× real time here` : ''}`}
             onClick={() => {
               onChange(m.id)
