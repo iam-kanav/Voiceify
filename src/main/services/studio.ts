@@ -122,7 +122,7 @@ function defaultVoice(provider?: string): Voice {
 /** Turn the provider's settings into the engine's keyword arguments. */
 function engineArgs(provider: Provider, settings: GenerationSettings & { temperature?: number }) {
   const legacy: Record<string, number> = settings.temperature !== undefined ? { temperature: settings.temperature } : {}
-  const values = paramsFor(provider.id, { ...legacy, ...settings.params })
+  const values = paramsFor(provider.id, { ...legacy, ...settings.params }, getSettings().providerDefaults?.[provider.id])
   const args: Record<string, unknown> = {}
   for (const spec of provider.params) args[spec.engineKey] = spec.integer ? Math.round(values[spec.key]) : values[spec.key]
   // Only multilingual models get a language; others always speak their one language.
@@ -483,7 +483,11 @@ export async function transcribeAudio(req: TranscribeRequest): Promise<Transcrip
   }
 }
 
-export const SFX_DEFAULTS: SoundEffectSettings = { seconds: 5, steps: 8, cfg: 1 }
+/** Model defaults merged with your own (Settings → Model settings). */
+function sfxDefaults(provider = 'stable-audio'): SoundEffectSettings {
+  const v = paramsFor(provider, {}, getSettings().providerDefaults?.[provider])
+  return { seconds: v.seconds, steps: v.steps, cfg: v.cfg }
+}
 export const SFX_LIMITS = { seconds: [0.5, 120], steps: [1, 50], cfg: [1, 10], count: [1, 4] } as const
 
 const clamp = (v: number, [lo, hi]: readonly [number, number]) => Math.min(hi, Math.max(lo, v))
@@ -502,10 +506,11 @@ export async function generateSoundEffect(req: SoundEffectRequest, opts: SoundEf
   if (family && family.task !== 'sfx') throw new StudioError(`“${family.name}” doesn’t make sound effects.`)
   const model = requireModel('sound-effects', ref.modelId, family)
   const num = (v: unknown, fallback: number) => (typeof v === 'number' && isFinite(v) ? v : fallback)
+  const defaults = sfxDefaults(model.provider)
   const settings: SoundEffectSettings = {
-    seconds: clamp(num(req.settings?.seconds, SFX_DEFAULTS.seconds), SFX_LIMITS.seconds),
-    steps: Math.round(clamp(num(req.settings?.steps, SFX_DEFAULTS.steps), SFX_LIMITS.steps)),
-    cfg: clamp(num(req.settings?.cfg, SFX_DEFAULTS.cfg), SFX_LIMITS.cfg),
+    seconds: clamp(num(req.settings?.seconds, defaults.seconds), SFX_LIMITS.seconds),
+    steps: Math.round(clamp(num(req.settings?.steps, defaults.steps), SFX_LIMITS.steps)),
+    cfg: clamp(num(req.settings?.cfg, defaults.cfg), SFX_LIMITS.cfg),
     negativePrompt: req.settings?.negativePrompt?.trim() || undefined
   }
   const count = Math.round(clamp(num(req.count, 1), SFX_LIMITS.count))

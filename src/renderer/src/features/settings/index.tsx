@@ -8,6 +8,7 @@ import { SAVE_MODES } from '@/components/SaveMode'
 import { useApp } from '@/stores/app'
 import { cn, studio } from '@/lib/api'
 import { usePlayerPadding } from '@/lib/useGenerate'
+import { ModelSettings } from './ModelSettings'
 
 const ENGINE_BADGE = {
   ready: { label: 'Ready', tone: 'green' },
@@ -95,6 +96,8 @@ export default function Settings() {
               </Button>
             </div>
           </Row>
+
+          <ModelSettings />
 
           <Row title="Storage" body="Models, your voices and generated audio are stored in Voiceify’s data folder on this computer.">
             <Button size="sm" variant="outline" icon={<FolderOpen className="size-4" />} onClick={() => studio.openDataFolder()}>

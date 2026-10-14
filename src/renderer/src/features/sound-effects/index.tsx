@@ -33,7 +33,7 @@ import { SaveButton, ensureSaveMode } from '@/components/SaveMode'
 import { Badge, Button, IconButton, Input, Kbd, Tabs, Textarea, Toggle } from '@/components/ui'
 import { errorMessage, toast } from '@/components/Toast'
 import { useApp } from '@/stores/app'
-import { useSfx } from '@/stores/sfx'
+import { sfxValues, useSfx } from '@/stores/sfx'
 import { playHistoryItem, usePlayer } from '@/stores/player'
 import { usePlayerPadding } from '@/lib/useGenerate'
 import { isInstalled } from '@/lib/models'
@@ -41,6 +41,7 @@ import { peaks } from '@/lib/wav'
 import { cn, dayLabel, formatTime, mediaUrl, studio, uid } from '@/lib/api'
 
 const PROVIDER = SFX_PROVIDERS[0]
+const SPEC = Object.fromEntries(PROVIDER.params.map((p) => [p.key, p]))
 const COLORS = PROVIDER.colors
 
 const EXAMPLES = [
@@ -64,6 +65,10 @@ const useSession = create<{
 
 export default function SoundEffects() {
   const s = useSfx()
+  // Re-render when Settings defaults change.
+  useApp((st) => st.settings?.providerDefaults?.[PROVIDER.id])
+  const v = sfxValues(s, PROVIDER.id)
+  const overridden = s.seconds !== undefined || s.steps !== undefined || s.cfg !== undefined
   const { busy, latest } = useSession()
   const models = useApp((st) => st.models)
   const engine = useApp((st) => st.engine)
@@ -92,7 +97,7 @@ export default function SoundEffects() {
     if (!(await ensureSaveMode())) return
     const jobId = uid()
     const prompt = s.prompt.trim()
-    useSession.setState({ busy: { jobId, prompt, step: 0, total: s.steps, startedAt: Date.now() } })
+    useSession.setState({ busy: { jobId, prompt, step: 0, total: v.steps, startedAt: Date.now() } })
     try {
       const items = await studio.generateSoundEffect({
         jobId,
@@ -100,7 +105,7 @@ export default function SoundEffects() {
         modelId: model.id,
         count: s.count,
         seed: s.fixedSeed ? s.seed : undefined,
-        settings: { seconds: s.seconds, steps: s.steps, cfg: s.cfg, negativePrompt: s.negativePrompt }
+        settings: { seconds: v.seconds, steps: v.steps, cfg: v.cfg, negativePrompt: s.negativePrompt }
       })
       useSession.setState({ latest: items.map((i) => i.id) })
       if (items[0]) playHistoryItem(items[0], COLORS)
@@ -192,7 +197,7 @@ export default function SoundEffects() {
           <div className="space-y-2">
             <Slider
               label="Length"
-              value={s.seconds}
+              value={v.seconds}
               min={0.5}
               max={120}
               step={0.5}
@@ -207,7 +212,7 @@ export default function SoundEffects() {
                   onClick={() => useSfx.setState({ seconds: sec })}
                   className={cn(
                     'rounded-full border px-2.5 py-0.5 text-[11.5px] transition-colors',
-                    s.seconds === sec ? 'border-ink bg-ink text-canvas' : 'border-line text-ink-2 hover:bg-muted'
+                    v.seconds === sec ? 'border-ink bg-ink text-canvas' : 'border-line text-ink-2 hover:bg-muted'
                   )}
                 >
                   {sec < 60 ? `${sec} s` : `${sec / 60} min`}
@@ -254,15 +259,15 @@ export default function SoundEffects() {
                   <div className="space-y-5 pt-4">
                     <Slider
                       label="Prompt strength"
-                      value={s.cfg}
-                      min={1}
-                      max={7}
-                      step={0.5}
-                      onChange={(v) => useSfx.setState({ cfg: v })}
-                      left="Natural"
-                      right="Literal"
-                      format={(v) => (v === 1 ? 'Off' : v.toFixed(1))}
-                      hint="Off (1) is how the model was tuned to run: fastest and most natural. Raising it follows your words more literally (classifier-free guidance) and lets you list sounds to avoid, at about twice the time."
+                      value={v.cfg}
+                      min={SPEC.cfg.min}
+                      max={SPEC.cfg.max}
+                      step={SPEC.cfg.step}
+                      onChange={(x) => useSfx.setState({ cfg: x })}
+                      left={SPEC.cfg.left}
+                      right={SPEC.cfg.right}
+                      format={(x) => (x === 1 ? 'Off' : x.toFixed(1))}
+                      hint={SPEC.cfg.help}
                     />
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5 text-[13px] font-medium">
@@ -271,23 +276,23 @@ export default function SoundEffects() {
                       </div>
                       <Input
                         value={s.negativePrompt}
-                        disabled={s.cfg <= 1}
+                        disabled={v.cfg <= 1}
                         onChange={(e) => useSfx.setState({ negativePrompt: e.target.value })}
-                        placeholder={s.cfg <= 1 ? 'Raise prompt strength to use this' : 'e.g. music, voices, background noise'}
+                        placeholder={v.cfg <= 1 ? 'Raise prompt strength to use this' : 'e.g. music, voices, background noise'}
                         className="disabled:opacity-50"
                       />
                     </div>
                     <Slider
                       label="Quality steps"
-                      value={s.steps}
-                      min={4}
-                      max={16}
+                      value={v.steps}
+                      min={SPEC.steps.min}
+                      max={SPEC.steps.max}
                       step={1}
-                      onChange={(v) => useSfx.setState({ steps: Math.round(v) })}
-                      left="Faster"
-                      right="More passes"
-                      format={(v) => String(Math.round(v))}
-                      hint="Refinement passes per clip. The model is trained for 8; fewer is faster but rougher, more rarely helps."
+                      onChange={(x) => useSfx.setState({ steps: Math.round(x) })}
+                      left={SPEC.steps.left}
+                      right={SPEC.steps.right}
+                      format={(x) => String(Math.round(x))}
+                      hint={SPEC.steps.help}
                     />
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-1.5 text-[13px] font-medium">
@@ -310,6 +315,14 @@ export default function SoundEffects() {
                         )}
                         <Toggle checked={s.fixedSeed} onChange={(v) => useSfx.setState({ fixedSeed: v })} />
                       </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-ink-3">
+                      <span>Defaults come from Settings → Model settings.</span>
+                      {overridden && (
+                        <button className="underline hover:text-ink" onClick={() => useSfx.setState({ seconds: undefined, steps: undefined, cfg: undefined })}>
+                          Reset to defaults
+                        </button>
+                      )}
                     </div>
                   </div>
                 </motion.div>

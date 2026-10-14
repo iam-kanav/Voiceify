@@ -368,6 +368,11 @@ export interface AppSettings {
    * generation asks.
    */
   saveMode?: 'all' | 'manual'
+  /**
+   * Your own starting values for each model family's settings (Settings → Model settings), keyed by
+   * provider id then ParamSpec.key. Used by the app pages, agents and the API; missing = model default.
+   */
+  providerDefaults?: Record<string, Record<string, number>>
 }
 
 export interface ApiServerInfo {

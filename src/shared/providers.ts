@@ -129,6 +129,20 @@ export const PROVIDERS: Provider[] = [
         step: 0.01,
         default: 1.05,
         advanced: true
+      },
+      {
+        key: 'maxTokens',
+        engineKey: 'max_tokens',
+        label: 'Max length per segment',
+        help: 'Upper limit on how much audio the model may produce for one segment of text (about 12 tokens per second of speech; 4096 ≈ 5 minutes). Lower it to stop runaway generations sooner. Long text is split into segments first, so this rarely needs changing.',
+        min: 256,
+        max: 8192,
+        step: 256,
+        default: 4096,
+        integer: true,
+        advanced: true,
+        left: 'Shorter',
+        right: 'Longer'
       }
     ],
     voices: [
@@ -175,15 +189,28 @@ export const PROVIDERS: Provider[] = [
         key: 'qualitySteps',
         engineKey: 'lsd_decode_steps',
         label: 'Quality steps',
-        help: 'How many refinement passes each bit of audio gets. More steps can sound slightly cleaner but take longer. Default 1.',
+        help: 'How many decoding passes each bit of audio gets (the model’s step count). More steps can sound slightly cleaner but take proportionally longer. Default 1.',
         min: 1,
-        max: 8,
+        max: 16,
         step: 1,
         default: 1,
         integer: true,
         advanced: true,
         left: 'Faster',
         right: 'Cleaner'
+      },
+      {
+        key: 'eosThreshold',
+        engineKey: 'eos_threshold',
+        label: 'End-of-speech sensitivity',
+        help: 'How readily the model decides a sentence is finished. Move toward “Patient” if the last word gets clipped, toward “Eager” if clips trail off with extra sound. Default −4.',
+        min: -8,
+        max: 0,
+        step: 0.5,
+        default: -4,
+        advanced: true,
+        left: 'Patient',
+        right: 'Eager'
       }
     ],
     voices: [
@@ -252,7 +279,43 @@ export const PROVIDERS: Provider[] = [
     colors: ['#8b5cf6', '#f97316'],
     languages: ['english'],
     features: { builtInVoices: false, styleInstructions: false, voiceCloning: false, voiceDesign: false },
-    params: [],
+    params: [
+      {
+        key: 'steps',
+        engineKey: 'steps',
+        label: 'Quality steps',
+        help: 'Diffusion steps per clip (the model’s step count). It is trained and tuned for 8: fewer is faster but rougher, more takes proportionally longer and only sometimes helps.',
+        min: 1,
+        max: 50,
+        step: 1,
+        default: 8,
+        integer: true,
+        left: 'Faster',
+        right: 'More passes'
+      },
+      {
+        key: 'cfg',
+        engineKey: 'cfg',
+        label: 'Prompt strength',
+        help: 'Off (1) is how the model was tuned to run: fastest and most natural. Higher follows your words more literally (classifier-free guidance) and enables “Avoid”, at about twice the time.',
+        min: 1,
+        max: 10,
+        step: 0.5,
+        default: 1,
+        left: 'Natural',
+        right: 'Literal'
+      },
+      {
+        key: 'seconds',
+        engineKey: 'seconds',
+        label: 'Default length',
+        help: 'Length of each new sound effect, in seconds (up to 120).',
+        min: 0.5,
+        max: 120,
+        step: 0.5,
+        default: 5
+      }
+    ],
     voices: []
   }
 ]
@@ -265,11 +328,21 @@ export const DEFAULT_PROVIDER = 'qwen3-tts'
 
 export const PRESET_VOICES: Voice[] = PROVIDERS.flatMap((p) => p.voices)
 
-/** Fill in a provider's default for every parameter it understands. */
-export function paramsFor(providerId: string, overrides: Record<string, number> = {}): Record<string, number> {
+/**
+ * Fill in every parameter a provider understands: explicit overrides, then your own defaults
+ * (Settings → Model settings), then the model's default. Out-of-range values are clamped.
+ */
+export function paramsFor(
+  providerId: string,
+  overrides: Record<string, number> = {},
+  userDefaults: Record<string, number> = {}
+): Record<string, number> {
   const p = PROVIDER_BY_ID.get(providerId)
   const out: Record<string, number> = {}
-  for (const spec of p?.params ?? []) out[spec.key] = overrides[spec.key] ?? spec.default
+  for (const spec of p?.params ?? []) {
+    const v = overrides[spec.key] ?? userDefaults[spec.key] ?? spec.default
+    out[spec.key] = typeof v === 'number' && isFinite(v) ? Math.min(spec.max, Math.max(spec.min, v)) : spec.default
+  }
   return out
 }
 

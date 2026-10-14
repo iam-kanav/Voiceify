@@ -17,7 +17,7 @@ import {
   Trash2,
   Wind
 } from 'lucide-react'
-import { ALL_LANGUAGES, paramsFor, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
+import { ALL_LANGUAGES, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
 import { SCRIPT_EXAMPLE } from '@shared/script'
 import { INSTRUCT_PRESETS } from '@shared/voices'
 import { PageHeader } from '@/components/PageHeader'
@@ -31,7 +31,7 @@ import { checkSpeakers, ScriptBar } from './ScriptBar'
 import { Badge, Button, Kbd, Tabs, Textarea, Toggle } from '@/components/ui'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { useApp } from '@/stores/app'
-import { currentParams, useTts } from '@/stores/tts'
+import { currentParams, paramsOf, useTts } from '@/stores/tts'
 import { playHistoryItem, usePlayer } from '@/stores/player'
 import { useGenerate, usePlayerPadding } from '@/lib/useGenerate'
 import { autoModel, capabilityFor, compatibleModels, fingerprintModels } from '@/lib/models'
@@ -134,7 +134,7 @@ export default function TextToSpeech() {
       const settingsByProvider = Object.fromEntries(
         TTS_PROVIDERS.map((p) => [
           p.id,
-          { language, instruct: p.id === provider.id && supportsInstruct ? instruct : '', params: paramsFor(p.id, tts.paramsByProvider[p.id]) }
+          { language, instruct: p.id === provider.id && supportsInstruct ? instruct : '', params: paramsOf(tts, p.id) }
         ])
       )
       const modelByProvider = Object.fromEntries(Object.entries(tts.modelByProvider).filter(([, m]) => m && m !== 'auto'))

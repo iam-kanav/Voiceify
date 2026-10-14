@@ -48,11 +48,11 @@ export const useTts = create<TtsState>()(
       setModel: (id) => set((s) => ({ modelByProvider: { ...s.modelByProvider, [s.provider]: id } })),
       setParam: (key, value) =>
         set((s) => ({
-          paramsByProvider: { ...s.paramsByProvider, [s.provider]: { ...paramsFor(s.provider, s.paramsByProvider[s.provider]), [key]: value } }
+          paramsByProvider: { ...s.paramsByProvider, [s.provider]: { ...currentParams(s), [key]: value } }
         })),
       setLanguage: (language) => set({ language }),
       setInstruct: (instruct) => set({ instruct }),
-      reset: () => set((s) => ({ paramsByProvider: { ...s.paramsByProvider, [s.provider]: paramsFor(get().provider) }, instruct: '', language: 'auto' }))
+      reset: () => set((s) => ({ paramsByProvider: { ...s.paramsByProvider, [s.provider]: paramsFor(get().provider, {}, userDefaults(s.provider)) }, instruct: '', language: 'auto' }))
     }),
     {
       name: 'tts-state',
@@ -75,9 +75,19 @@ export const useTts = create<TtsState>()(
   )
 )
 
+/** Your own starting values for a family (Settings → Model settings). */
+export function userDefaults(provider: string) {
+  return useApp.getState().settings?.providerDefaults?.[provider] ?? {}
+}
+
+/** A family's settings on this page, with your defaults and then the model's filled in. */
+export function paramsOf(s: Pick<TtsState, 'paramsByProvider'>, provider: string) {
+  return paramsFor(provider, s.paramsByProvider[provider], userDefaults(provider))
+}
+
 /** The current family's settings with defaults filled in. */
 export function currentParams(s: Pick<TtsState, 'provider' | 'paramsByProvider'>) {
-  return paramsFor(s.provider, s.paramsByProvider[s.provider])
+  return paramsOf(s, s.provider)
 }
 
 /**
