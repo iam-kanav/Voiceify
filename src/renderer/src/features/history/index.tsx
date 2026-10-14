@@ -47,6 +47,11 @@ export default function History() {
       navigate('sound-effects')
       return
     }
+    if (h.mode === 'script') {
+      useTts.setState({ text: h.text, scriptMode: true, scriptPause: h.script?.pauseSec ?? 0.35 })
+      navigate('tts')
+      return
+    }
     const t = useTts.getState()
     const provider = h.provider ?? 'qwen3-tts'
     const voice = voices.find((v) => v.id === h.voiceId)

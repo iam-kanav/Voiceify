@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Capability, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Provider, SoundEffectRequest, SoundEffectSettings, TranscribeRequest, Transcript, Voice } from '@shared/types'
+import type { Capability, GenerateRequest, GenerationMode, GenerationSettings, HistoryItem, ModelVariant, Provider, ScriptPart, ScriptRequest, SoundEffectRequest, SoundEffectSettings, TranscribeRequest, Transcript, Voice } from '@shared/types'
+import { parseScript, resolveSpeaker } from '@shared/script'
 import { ASR_PROVIDERS, DEFAULT_PROVIDER, paramsFor, PROVIDER_BY_ID, providersForVoice, SFX_PROVIDERS, STT_LANGUAGES, TTS_PROVIDERS } from '@shared/providers'
 import { DEFAULT_GENERATION } from '@shared/voices'
 import { engine } from '../engine/client'
@@ -9,6 +10,7 @@ import { bus } from '../events'
 import { history } from '../library/history'
 import { transcripts } from '../library/transcripts'
 import { voices } from '../library/voices'
+import { readWav, resample, toMono, writeWav } from '../library/wav'
 import { models } from '../models/manager'
 import { paths } from '../paths'
 import { getSettings } from '../settings'
@@ -289,7 +291,119 @@ export async function generate(req: GenerateRequest, opts: GenerateOptions = {})
 }
 
 export function cancel(jobId: string) {
+  const script = scriptJobs.get(jobId)
+  if (script) {
+    script.cancelled = true
+    if (script.current) engine.cancel(script.current)
+    return
+  }
   engine.cancel(jobId)
+}
+
+const scriptJobs = new Map<string, { cancelled: boolean; current?: string }>()
+
+/**
+ * Script mode: each `[@Name]:` section is spoken by that voice (with its own model family), then
+ * the pieces are joined with a short pause into one clip and one history item. Streams as it goes.
+ */
+export async function generateScript(req: ScriptRequest, opts: GenerateOptions = {}): Promise<HistoryItem> {
+  const segments = parseScript(req.script ?? '')
+  if (!segments.length) throw new StudioError('The script is empty.')
+  const pauseSec = Math.min(3, Math.max(0, req.pauseSec ?? 0.35))
+  const all = voices.list()
+  const defaultV = req.defaultVoiceId ? voices.find(req.defaultVoiceId) : defaultVoice(req.provider)
+  if (!defaultV) throw new StudioError(`The voice "${req.defaultVoiceId}" no longer exists. Pick another voice.`)
+
+  // Resolve every line before generating anything, so a typo fails fast.
+  const lines = segments.map((s) => {
+    const voice = s.speaker ? resolveSpeaker(s.speaker, all, req.provider) : defaultV
+    if (!voice) {
+      throw new StudioError(`Line ${s.line}: there’s no voice called “${s.speaker}”. Use the name of a built-in voice or one of yours (e.g. [@Ryan]).`)
+    }
+    const provider = pickProvider(voice, voice.kind === 'preset' ? undefined : req.provider)
+    const base = req.settingsByProvider?.[provider.id] ?? {}
+    // Panel instructions direct the default voice; a tag's style directs its own line.
+    const instruct = s.speaker ? (s.style ?? '') : (s.style ?? base.instruct ?? '')
+    return { seg: s, voice, provider, settings: { ...base, instruct }, modelId: req.modelByProvider?.[provider.id] }
+  })
+
+  const scriptId = opts.jobId ?? `script_${randomUUID().slice(0, 8)}`
+  const state = { cancelled: false, current: undefined as string | undefined }
+  scriptJobs.set(scriptId, state)
+  const made: HistoryItem[] = []
+  try {
+    for (const [i, l] of lines.entries()) {
+      if (state.cancelled) throw new StudioError('Generation cancelled.')
+      state.current = `${scriptId}_${i}`
+      const item = await generate(
+        { text: l.seg.text, voiceId: l.voice.id, provider: l.provider.id, modelId: l.modelId, settings: l.settings, stream: req.stream, source: req.source },
+        { jobId: state.current, onChunk: opts.onChunk, ephemeral: true }
+      )
+      made.push(item)
+      if (opts.onChunk && i < lines.length - 1 && pauseSec > 0) {
+        opts.onChunk(Buffer.alloc(Math.round(pauseSec * item.sampleRate) * 2), item.sampleRate)
+      }
+    }
+
+    // Stitch the lines into one mono clip at the first line's rate.
+    const rate = made[0].sampleRate
+    const clips = made.map((h) => resample(toMono(readWav(h.audioPath)), rate).data)
+    const gap = Math.round(pauseSec * rate)
+    const total = clips.reduce((n, c) => n + c.length, 0) + gap * (clips.length - 1)
+    const data = new Int16Array(total)
+    const parts: ScriptPart[] = []
+    let at = 0
+    clips.forEach((c, i) => {
+      data.set(c, at)
+      const h = made[i]
+      parts.push({
+        voiceId: h.voiceId,
+        voiceName: h.voiceName,
+        provider: h.provider ?? lines[i].provider.id,
+        modelId: h.modelId,
+        mode: h.mode,
+        text: lines[i].seg.text,
+        style: lines[i].seg.style,
+        start: at / rate,
+        end: (at + c.length) / rate
+      })
+      at += c.length + gap
+    })
+    const id = `gen_${Date.now().toString(36)}_${randomUUID().slice(0, 6)}`
+    const outPath = history.audioPathFor(id)
+    writeWav(outPath, { sampleRate: rate, channels: 1, data })
+
+    const names = [...new Set(parts.map((p) => p.voiceName))]
+    const processing = made.reduce((n, h) => n + h.processingSec, 0)
+    const duration = total / rate
+    const first = made[0]
+    const source = req.source ?? 'app'
+    const item: HistoryItem = {
+      id,
+      text: req.script.trim(),
+      provider: first.provider,
+      voiceId: first.voiceId,
+      voiceName: names.length <= 2 ? names.join(' & ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`,
+      modelId: first.modelId,
+      mode: 'script',
+      settings: first.settings,
+      audioPath: outPath,
+      durationSec: duration,
+      sampleRate: rate,
+      processingSec: processing,
+      rtf: processing / Math.max(0.001, duration),
+      coldStart: made.some((h) => h.coldStart),
+      createdAt: Date.now(),
+      source,
+      script: { pauseSec, segments: parts }
+    }
+    if (keepOnlySaved(source)) item.saved = false
+    history.add(item)
+    return item
+  } finally {
+    scriptJobs.delete(scriptId)
+    for (const h of made) history.remove(h.id)
+  }
 }
 
 /**

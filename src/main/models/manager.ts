@@ -88,7 +88,8 @@ class ModelManager {
   private localSpeeds() {
     const by = new Map<string, number[]>()
     for (const h of history.list(true).slice(0, 400)) {
-      if (h.durationSec < 2 || !h.processingSec || h.coldStart) continue
+      // Scripts mix several models, so they say nothing about any one model's speed.
+      if (h.durationSec < 2 || !h.processingSec || h.coldStart || h.mode === 'script') continue
       by.set(h.modelId, [...(by.get(h.modelId) ?? []), h.durationSec / h.processingSec])
     }
     const out = new Map<string, { speedup: number; samples: number }>()

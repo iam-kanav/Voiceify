@@ -4,6 +4,7 @@ import {
   BookOpen,
   ChevronDown,
   Clapperboard,
+  FileText,
   Gamepad2,
   Globe2,
   Laugh,
@@ -16,7 +17,8 @@ import {
   Trash2,
   Wind
 } from 'lucide-react'
-import { ALL_LANGUAGES, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
+import { ALL_LANGUAGES, paramsFor, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
+import { SCRIPT_EXAMPLE } from '@shared/script'
 import { INSTRUCT_PRESETS } from '@shared/voices'
 import { PageHeader } from '@/components/PageHeader'
 import { VoicePicker } from '@/components/VoicePicker'
@@ -25,7 +27,8 @@ import { Slider } from '@/components/Slider'
 import { InfoTip } from '@/components/InfoTip'
 import { ModelChooser } from './ModelChooser'
 import { ProviderPicker } from './ProviderPicker'
-import { Badge, Button, Kbd, Tabs, Textarea } from '@/components/ui'
+import { checkSpeakers, ScriptBar } from './ScriptBar'
+import { Badge, Button, Kbd, Tabs, Textarea, Toggle } from '@/components/ui'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { useApp } from '@/stores/app'
 import { currentParams, useTts } from '@/stores/tts'
@@ -56,11 +59,27 @@ export default function TextToSpeech() {
   const models = useApp((s) => s.models)
   const appSettings = useApp((s) => s.settings)
   const engine = useApp((s) => s.engine)
-  const { run, cancel, busy } = useGenerate()
+  const { run, runScript, cancel, busy } = useGenerate()
+  const { scriptMode, scriptPause } = tts
   const pad = usePlayerPadding()
   const [tab, setTab] = useState<'settings' | 'history'>('settings')
   const [advanced, setAdvanced] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
+
+  /** Insert a speaker tag at the cursor, on its own line. */
+  const insertTag = (tag: string) => {
+    const el = textRef.current
+    const at = el ? el.selectionStart : text.length
+    const before = text.slice(0, at)
+    const lead = before && !before.endsWith('\n') ? '\n' : ''
+    const next = before + lead + tag + text.slice(at)
+    setText(next)
+    requestAnimationFrame(() => {
+      const pos = (before + lead + tag).length
+      el?.focus()
+      el?.setSelectionRange(pos, pos)
+    })
+  }
 
   // Only voices this family can speak; fall back to its first built-in voice.
   const usableVoices = voices.filter((v) => providersForVoice(v).some((p) => p.id === provider.id))
@@ -81,7 +100,10 @@ export default function TextToSpeech() {
   const mainParams = provider.params.filter((p) => !p.advanced)
   const advancedParams = provider.params.filter((p) => p.advanced)
   const supportsTags = !!active?.capabilities.includes('emotion-tags')
-  const canGenerate = !!text.trim() && !!active && engine.state === 'ready' && !busy
+  // Script mode: every [@Name] must be a voice whose model is installed.
+  const speakerChecks = useMemo(() => (scriptMode ? checkSpeakers(text, voices, models, provider.id) : []), [scriptMode, text, voices, models, provider.id])
+  const scriptProblem = speakerChecks.find((s) => s.problem)?.problem
+  const canGenerate = !!text.trim() && !!active && engine.state === 'ready' && !busy && !scriptProblem
   // Why Generate is disabled, plus a one-click fix where there is one.
   const blocker: { text: string; action?: { label: string; run: () => void } } | null =
     engine.state === 'starting'
@@ -95,8 +117,10 @@ export default function TextToSpeech() {
             : !active
               ? { text: 'This voice needs a model.', action: { label: 'Open Models', run: () => navigate('models', { family: provider.id }) } }
               : !text.trim()
-                ? { text: 'Type something to generate' }
-                : null
+                ? { text: scriptMode ? 'Write a script to generate' : 'Type something to generate' }
+                : scriptProblem
+                  ? { text: scriptProblem }
+                  : null
 
   // Keep the chosen model valid when the voice changes.
   useEffect(() => {
@@ -105,6 +129,21 @@ export default function TextToSpeech() {
 
   const generate = () => {
     if (!canGenerate || !voice) return
+    if (scriptMode) {
+      // Each family keeps its own settings; panel instructions apply to untagged text.
+      const settingsByProvider = Object.fromEntries(
+        TTS_PROVIDERS.map((p) => [
+          p.id,
+          { language, instruct: p.id === provider.id && supportsInstruct ? instruct : '', params: paramsFor(p.id, tts.paramsByProvider[p.id]) }
+        ])
+      )
+      const modelByProvider = Object.fromEntries(Object.entries(tts.modelByProvider).filter(([, m]) => m && m !== 'auto'))
+      runScript(
+        { script: text, defaultVoiceId: voice.id, provider: provider.id, settingsByProvider, modelByProvider, pauseSec: scriptPause },
+        { title: 'Script', colors: voice.colors }
+      )
+      return
+    }
     run(
       {
         text,
@@ -134,11 +173,12 @@ export default function TextToSpeech() {
       <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
         {/* Editor */}
         <section className="relative flex min-w-0 flex-1 flex-col">
+          {scriptMode && <ScriptBar text={text} voices={voices} models={models} provider={provider.id} onInsert={insertTag} />}
           <textarea
             ref={textRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Type or paste anything, and Voiceify will read it aloud…"
+            placeholder={scriptMode ? `Write a script. Start each part with a speaker tag:\n\n${SCRIPT_EXAMPLE}` : 'Type or paste anything, and Voiceify will read it aloud…'}
             className="scroll flex-1 resize-none bg-transparent px-8 pt-6 pb-4 text-[17px] leading-[1.7] text-ink outline-none placeholder:text-ink-3"
           />
           <AnimatePresence>
@@ -151,6 +191,20 @@ export default function TextToSpeech() {
               >
                 <div className="mb-3 text-[13px] text-ink-3">Try an example</div>
                 <div className="pointer-events-auto flex flex-wrap gap-2">
+                  {scriptMode && (
+                    <motion.button
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      onClick={() => {
+                        setText(SCRIPT_EXAMPLE)
+                        textRef.current?.focus()
+                      }}
+                      className="flex h-9 items-center gap-2 rounded-xl border border-ink px-3 text-[13px] text-ink transition-colors hover:bg-subtle"
+                    >
+                      <FileText className="size-4" />
+                      Example dialogue
+                    </motion.button>
+                  )}
                   {STARTERS.map((s, i) => (
                     <motion.button
                       key={s.label}
@@ -171,6 +225,14 @@ export default function TextToSpeech() {
             )}
           </AnimatePresence>
           <div className="flex h-16 shrink-0 items-center gap-3 border-t border-line px-6">
+            <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-xs font-medium text-ink-2">
+              <Toggle checked={scriptMode} onChange={(v) => useTts.setState({ scriptMode: v })} />
+              Script
+              <InfoTip width={300}>
+                Several voices in one text. Start each part with <b>[@Name]:</b> (e.g. [@Ryan]: Hello!) and that voice reads until the next tag.
+                Everything is joined into one clip.
+              </InfoTip>
+            </label>
             <span className="whitespace-nowrap text-xs tabular-nums text-ink-3">
               {text.length.toLocaleString()} characters
             </span>
@@ -198,7 +260,7 @@ export default function TextToSpeech() {
               </Button>
             ) : null}
             <Button onClick={generate} disabled={!canGenerate} loading={busy} size="md" className="min-w-[160px]" title={blocker?.text}>
-              {busy ? 'Generating…' : 'Generate speech'}
+              {busy ? 'Generating…' : scriptMode ? 'Generate script' : 'Generate speech'}
               {!busy && <Kbd>⌘↵</Kbd>}
             </Button>
           </div>
@@ -231,9 +293,27 @@ export default function TextToSpeech() {
                   <ProviderPicker value={provider.id} onChange={setProvider} />
 
                   <div className="space-y-2">
-                    <div className="text-[13px] font-medium">Voice</div>
+                    <div className="flex items-center gap-1.5 text-[13px] font-medium">
+                      {scriptMode ? 'Default voice' : 'Voice'}
+                      {scriptMode && <InfoTip>Reads any text before the first [@Name] tag. Tagged parts use the voice they name.</InfoTip>}
+                    </div>
                     <VoicePicker provider={provider.id} value={voice?.id ?? ''} onChange={(id) => setVoice(id)} />
                   </div>
+
+                  {scriptMode && (
+                    <Slider
+                      label="Pause between speakers"
+                      value={scriptPause}
+                      min={0}
+                      max={1.5}
+                      step={0.05}
+                      onChange={(v) => useTts.setState({ scriptPause: v })}
+                      left="Tight"
+                      right="Relaxed"
+                      format={(v) => `${v.toFixed(2)} s`}
+                      hint="Silence added each time the speaker changes."
+                    />
+                  )}
 
                   <ModelChooser provider={provider.id} voice={voice} cap={cap} options={options} active={active} value={modelId} onChange={setModel} />
 

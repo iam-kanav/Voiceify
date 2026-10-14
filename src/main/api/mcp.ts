@@ -7,7 +7,7 @@ import { history } from '../library/history'
 import { voices } from '../library/voices'
 import { models } from '../models/manager'
 import * as studio from '../services/studio'
-import { providersForVoice, STT_LANGUAGES } from '@shared/providers'
+import { providersForVoice, STT_LANGUAGES, TTS_PROVIDERS } from '@shared/providers'
 import { formatTranscript } from '@shared/subtitles'
 
 /**
@@ -264,6 +264,46 @@ export function createMcpServer(baseUrl: string) {
         }
         if (format === 'srt' || format === 'vtt') return text(formatTranscript(t.text, t.segments, format))
         return text(t.text)
+      } catch (e) {
+        return fail(e)
+      }
+    }
+  )
+
+  server.registerTool(
+    'speak_script',
+    {
+      title: 'Speak a script with several voices',
+      description:
+        'Dialogue / multi-voice text to speech. Write [@Name]: before each part; everything after a tag is spoken by that voice until the next tag. ' +
+        'Text before the first tag uses default_voice. Add a style after a comma, e.g. [@Ryan, whispering]: (models that follow style instructions). ' +
+        'Voices are matched by name from list_voices; built-in voices use their own model family, your own voices use `provider`. Returns one WAV.',
+      inputSchema: {
+        script: z.string().min(1).describe('e.g. "[@Alba]: Did you hear that?\n[@Ryan]: It\'s just the wind."'),
+        default_voice: z.string().optional().describe('Voice id or name for untagged text'),
+        provider: z.string().optional().describe('Model family for your own voices, e.g. "qwen3-tts" or "pocket-tts"'),
+        language: z.enum(LANG_IDS).optional(),
+        pause_seconds: z.number().min(0).max(3).optional().describe('Silence between speakers (default 0.35)'),
+        play: z.boolean().optional().describe('Play the result out loud in the app'),
+        include_audio: z.boolean().optional().describe('Also return the audio inline as base64 WAV')
+      }
+    },
+    async (args) => {
+      try {
+        const voice = args.default_voice ? voices.find(args.default_voice) : undefined
+        if (args.default_voice && !voice) return fail(`Unknown voice "${args.default_voice}". Call list_voices.`)
+        const settings = args.language ? { language: args.language } : {}
+        const item = await studio.generateScript({
+          script: args.script,
+          defaultVoiceId: voice?.id,
+          provider: args.provider,
+          pauseSec: args.pause_seconds,
+          settingsByProvider: Object.fromEntries(TTS_PROVIDERS.map((p) => [p.id, settings])),
+          stream: false,
+          source: 'mcp'
+        })
+        if (args.play) studio.playInApp(item.id)
+        return audioResult(item, baseUrl, !!args.include_audio)
       } catch (e) {
         return fail(e)
       }

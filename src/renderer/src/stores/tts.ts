@@ -16,6 +16,10 @@ interface TtsState {
   paramsByProvider: Record<string, Record<string, number>>
   language: string
   instruct: string
+  /** Script mode: `[@Name]:` tags switch voices. */
+  scriptMode: boolean
+  /** Silence between speakers in script mode, seconds. */
+  scriptPause: number
   setText: (t: string) => void
   setProvider: (p: string) => void
   setVoice: (id: string, provider?: string) => void
@@ -36,6 +40,8 @@ export const useTts = create<TtsState>()(
       paramsByProvider: {},
       language: 'auto',
       instruct: '',
+      scriptMode: false,
+      scriptPause: 0.35,
       setText: (text) => set({ text }),
       setProvider: (provider) => set({ provider }),
       setVoice: (id, provider) => set((s) => ({ voiceByProvider: { ...s.voiceByProvider, [provider ?? s.provider]: id } })),

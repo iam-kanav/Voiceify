@@ -77,6 +77,18 @@ const handlers: Handlers = {
         }
       }
     }),
+  generateScript: (e, req) =>
+    studio.generateScript(
+      { ...req, source: 'app' },
+      {
+        jobId: req.jobId,
+        onChunk: (pcm, sampleRate) => {
+          if (!e.sender.isDestroyed()) {
+            e.sender.send('studio:event:generationChunk', { jobId: req.jobId, pcm: new Uint8Array(pcm), sampleRate })
+          }
+        }
+      }
+    ),
   generateSoundEffect: (e, req) =>
     studio.generateSoundEffect(
       { ...req, source: 'app' },

@@ -187,7 +187,7 @@ export interface Voice {
 
 // ---------- Generation ----------
 
-export type GenerationMode = 'preset' | 'clone' | 'design' | 'fingerprint' | 'sfx'
+export type GenerationMode = 'preset' | 'clone' | 'design' | 'fingerprint' | 'sfx' | 'script'
 
 export interface GenerationSettings {
   language: string // "auto" | "english" | …
@@ -234,6 +234,37 @@ export interface HistoryItem {
   saved?: boolean
   /** Sound effects: how this clip was made (`text` holds the prompt). */
   sfx?: SoundEffectSettings & { seed: number; variation: number; of: number }
+  /** Script mode: who said what, and when (`text` holds the whole script). */
+  script?: { pauseSec: number; segments: ScriptPart[] }
+}
+
+export interface ScriptPart {
+  voiceId?: string
+  voiceName: string
+  provider: string
+  modelId: string
+  mode: GenerationMode
+  text: string
+  style?: string
+  start: number
+  end: number
+}
+
+/** Script mode: several voices in one text. See src/shared/script.ts for the format. */
+export interface ScriptRequest {
+  script: string
+  /** Reads untagged text; defaults like a normal generation. */
+  defaultVoiceId?: string
+  /** Model family for your own voices (built-in voices always use their own family). */
+  provider?: string
+  /** Each family's settings (language, instructions, parameters). Instructions apply to untagged text. */
+  settingsByProvider?: Record<string, Partial<GenerationSettings>>
+  /** Specific model per family; omitted = automatic. */
+  modelByProvider?: Record<string, string>
+  /** Silence between speakers, in seconds (default 0.35). */
+  pauseSec?: number
+  stream?: boolean
+  source?: 'app' | 'mcp' | 'api'
 }
 
 // ---------- Sound effects ----------

@@ -8,6 +8,7 @@ import type {
   GenerationProgress,
   HistoryItem,
   ModelInfo,
+  ScriptRequest,
   SoundEffectRequest,
   SystemInfo,
   TranscribeRequest,
@@ -51,6 +52,8 @@ export interface StudioInvoke {
   previewVoice(id: string): { path: string }
 
   generate(req: GenerateRequest & { jobId: string }): HistoryItem
+  /** Script mode: several voices in one text; streams like `generate`, returns one combined item. */
+  generateScript(req: ScriptRequest & { jobId: string }): HistoryItem
   /** Sound effects: one history item per variation, take 1 first. Progress arrives as `generationProgress`. */
   generateSoundEffect(req: SoundEffectRequest & { jobId: string }): HistoryItem[]
   cancelGeneration(jobId: string): void
@@ -121,6 +124,7 @@ export const INVOKE_METHODS: (keyof StudioInvoke)[] = [
   'transcribe',
   'previewVoice',
   'generate',
+  'generateScript',
   'generateSoundEffect',
   'cancelGeneration',
   'listHistory',
