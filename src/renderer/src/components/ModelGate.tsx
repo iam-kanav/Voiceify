@@ -81,7 +81,7 @@ export function ModelGate({ cap, compact, provider }: { cap: Capability; compact
       action={
         s.status === 'not-installed' || s.status === 'error' ? (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('models')}>
+            <Button variant="outline" size="sm" onClick={() => navigate('models', { family: rec.provider })}>
               All models
             </Button>
             <Button

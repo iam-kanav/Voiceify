@@ -84,7 +84,7 @@ export default function TextToSpeech() {
           : engine.state === 'error'
             ? { text: 'The voice engine stopped.', action: { label: 'Restart engine', run: () => studio.restartEngine() } }
             : !active
-              ? { text: 'This voice needs a model.', action: { label: 'Open Models', run: () => navigate('models') } }
+              ? { text: 'This voice needs a model.', action: { label: 'Open Models', run: () => navigate('models', { family: provider.id }) } }
               : !text.trim()
                 ? { text: 'Type something to generate' }
                 : null

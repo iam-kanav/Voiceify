@@ -91,7 +91,7 @@ export function ModelChooser({
           <div className="mt-0.5 text-ink-3">{m.officialName}</div>
           {speed && <div className="text-ink-3">{speed}</div>}
         </div>
-        <button onClick={() => navigate('models')} className="shrink-0 text-xs text-ink-3 hover:text-ink">
+        <button onClick={() => navigate('models', provider ? { family: provider } : undefined)} className="shrink-0 text-xs text-ink-3 hover:text-ink">
           Other versions
         </button>
       </div>

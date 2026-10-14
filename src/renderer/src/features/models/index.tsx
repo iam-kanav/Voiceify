@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Check, Cpu, Download, ExternalLink, HardDrive, Loader2, MemoryStick, Plus, Sparkles, Star, Trash2, X } from 'lucide-react'
 import type { ModelInfo, Provider } from '@shared/types'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
@@ -26,6 +26,8 @@ export default function Models() {
   const system = useApp((s) => s.system)
   const engine = useApp((s) => s.engine)
   const [filter, setFilter] = useState<Filter>('all')
+  const route = useApp((s) => s.route)
+  const navigate = useApp((s) => s.navigate)
   const pad = usePlayerPadding()
 
   const recommended = models.filter((m) => m.recommended && !m.community)
@@ -48,8 +50,23 @@ export default function Models() {
       provider: undefined,
       roles: extrasRoles.map((roleId) => ({ roleId, rows: visible.filter((m) => m.roleId === roleId) })).filter((r) => r.rows.length)
     })
-    return out.filter((f) => f.roles.length)
+    return out
   }, [models, filter])
+
+  // One family at a time, picked from a strip (keeps the page short as families are added).
+  const pickable = families.filter(
+    (f) => f.provider || models.some((m) => m.roleId === 'community' || m.roleId === 'custom')
+  )
+  const familyId = route.params?.family && pickable.some((f) => (f.provider?.id ?? 'extras') === route.params?.family)
+    ? route.params.family
+    : (pickable[0]?.provider?.id ?? 'extras')
+  const selected = pickable.find((f) => (f.provider?.id ?? 'extras') === familyId)
+  const pick = (id: string) => navigate('models', { family: id })
+  // Within a family that does several jobs (e.g. Qwen3-TTS), narrow to one job.
+  const [roleFilter, setRoleFilter] = useState<string>('all')
+  const familyRoles = selected?.roles ?? []
+  const roleId = familyRoles.some((r) => r.roleId === roleFilter) ? roleFilter : 'all'
+  const shownRoles = roleId === 'all' ? familyRoles : familyRoles.filter((r) => r.roleId === roleId)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -88,10 +105,12 @@ export default function Models() {
                     <div className="mt-0.5 text-[13px] text-ink-3">Picked for {system.memoryGB} GB of memory, so they run smoothly.</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {recommended.map((m) => (
-                        <Badge key={m.id} tone={m.install.status === 'installed' ? 'green' : 'neutral'}>
-                          {m.install.status === 'installed' && <Check className="size-3" />}
-                          {m.role} · {m.sizeLabel} · {m.precisionLabel}
-                        </Badge>
+                        <button key={m.id} onClick={() => pick(m.provider)} title={`Show ${m.family}`}>
+                          <Badge tone={m.install.status === 'installed' ? 'green' : 'neutral'} className="cursor-pointer hover:opacity-80">
+                            {m.install.status === 'installed' && <Check className="size-3" />}
+                            {m.name}
+                          </Badge>
+                        </button>
                       ))}
                     </div>
                   </>
@@ -115,38 +134,133 @@ export default function Models() {
           </Card>
         )}
 
+        {/* Sticky so switching families is always one click away, however long a family's list gets. */}
+        <div className="sticky top-0 z-20 -mx-8 space-y-4 border-b border-line bg-canvas/90 px-8 pb-4 pt-4 backdrop-blur-xl">
+        <FamilyPicker families={pickable.map((f) => f.provider)} value={familyId} onChange={pick} />
+
         <div className="flex items-center justify-between">
           <Tabs
             id="model-filter"
             value={filter}
             onChange={setFilter}
             tabs={[
-              { id: 'all', label: 'All models' },
+              { id: 'all', label: 'All versions' },
               { id: 'installed', label: 'Installed' },
               { id: 'recommended', label: 'Recommended' }
             ]}
           />
           <CustomModel />
         </div>
+        {familyRoles.length > 1 && (
+          <Tabs
+            id="model-role"
+            value={roleId}
+            onChange={setRoleFilter}
+            className="flex-wrap"
+            tabs={[
+              { id: 'all', label: `Everything · ${familyRoles.reduce((n, r) => n + r.rows.length, 0)}` },
+              ...familyRoles.map((r) => ({ id: r.roleId, label: `${ROLES[r.roleId]?.label ?? r.roleId} · ${r.rows.length}` }))
+            ]}
+          />
+        )}
+        </div>
 
-        {families.map(({ provider, roles }, i) => (
+        <AnimatePresence mode="wait" initial={false}>
           <motion.div
-            key={provider?.id ?? 'extras'}
+            key={familyId}
             initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0, transition: { delay: i * 0.05 } }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className="space-y-6"
           >
-            {provider ? <FamilyHeader provider={provider} /> : <h2 className="text-lg font-semibold tracking-tight">Community &amp; custom</h2>}
-            {roles.map(({ roleId, rows }) => (
-              <RoleSection key={roleId} roleId={roleId} rows={rows} showRole={!provider || roles.length > 1 || roleId !== 'voices-and-cloning'} />
-            ))}
+            {selected?.provider ? (
+              <FamilyHeader provider={selected.provider} />
+            ) : (
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">Community &amp; custom</h2>
+                <p className="mt-0.5 text-[13px] text-ink-3">Fine-tunes and models you added from Hugging Face.</p>
+              </div>
+            )}
+            {shownRoles.length ? (
+              shownRoles.map(({ roleId, rows }) => (
+                <RoleSection
+                  key={roleId}
+                  roleId={roleId}
+                  rows={rows}
+                  showRole={!selected?.provider || familyRoles.length > 1 || roleId !== 'voices-and-cloning'}
+                />
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-line-strong p-8 text-center text-sm text-ink-3">
+                {filter === 'installed'
+                  ? `You haven’t installed any ${selected?.provider?.name ?? 'custom'} models yet.`
+                  : 'Nothing recommended here for this computer.'}{' '}
+                <button onClick={() => setFilter('all')} className="font-medium text-ink underline-offset-2 hover:underline">
+                  Show all versions
+                </button>
+              </div>
+            )}
           </motion.div>
-        ))}
+        </AnimatePresence>
 
         <p className="text-xs text-ink-3">
-          Weights are downloaded from Hugging Face. Quality and speed bars are relative estimates; “On this computer” shows the speed measured from your own
+          Weights are downloaded from Hugging Face. Quality and speed bars are relative estimates; “Your speed” is measured from your own
           generations.
         </p>
+      </div>
+    </div>
+  )
+}
+
+/** Horizontal strip of model families; scrolls sideways when there are many. */
+function FamilyPicker({ families, value, onChange }: { families: (Provider | undefined)[]; value: string; onChange: (id: string) => void }) {
+  const models = useApp((s) => s.models)
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5 text-[13px] font-medium">
+        Model family
+        <InfoTip>Each family is a different open-source model with its own voices, strengths and sizes. Pick one to see its versions.</InfoTip>
+      </div>
+      <div className="scroll -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {families.map((p) => {
+          const id = p?.id ?? 'extras'
+          const mine = models.filter((m) => (p ? m.provider === p.id && m.roleId !== 'community' && m.roleId !== 'custom' : m.roleId === 'community' || m.roleId === 'custom'))
+          const installed = mine.filter(isInstalled).length
+          const busy = mine.some((m) => ['queued', 'downloading', 'converting'].includes(m.install.status))
+          const active = id === value
+          return (
+            <button
+              key={id}
+              onClick={() => onChange(id)}
+              className={cn(
+                'relative flex w-60 shrink-0 items-start gap-3 rounded-2xl border p-3 text-left transition-colors',
+                active ? 'border-ink' : 'border-line hover:border-line-strong hover:bg-subtle'
+              )}
+            >
+              {active && (
+                <motion.span
+                  layoutId="family-active"
+                  className="absolute inset-0 rounded-2xl bg-subtle"
+                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                />
+              )}
+              <span className="relative">
+                <VoiceAvatar colors={p?.colors ?? ['#a1a1aa', '#52525b']} size={32} />
+              </span>
+              <span className="relative min-w-0 flex-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold">{p?.name ?? 'Community & custom'}</span>
+                  {p?.task === 'asr' && <span className="text-[10px] text-ink-3">Helper</span>}
+                </span>
+                <span className="block truncate text-[11.5px] text-ink-3">{p ? `${p.vendor} · ${p.tagline}` : 'Fine-tunes and your additions'}</span>
+                <span className={cn('mt-1 block text-[11px]', installed ? 'text-success' : 'text-ink-3')}>
+                  {busy ? 'Downloading…' : installed ? `${installed} installed` : 'Not installed'} · {mine.length} version{mine.length === 1 ? '' : 's'}
+                </span>
+              </span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
