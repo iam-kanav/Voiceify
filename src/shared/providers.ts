@@ -1,4 +1,4 @@
-import type { Provider, Voice } from './types'
+import type { ParamSpec, Provider, Voice } from './types'
 
 /**
  * Model providers: one entry per model family. Each one declares what it can do, which languages
@@ -291,6 +291,89 @@ export const PROVIDERS: Provider[] = [
     voices: []
   },
   {
+    id: 'omnivoice',
+    name: 'OmniVoice',
+    vendor: 'k2-fsa',
+    license: 'Apache-2.0',
+    url: 'https://huggingface.co/k2-fsa/OmniVoice',
+    task: 'tts',
+    tagline: 'Your voices in 600+ languages, at the exact length you need.',
+    description:
+      'A model from the k2-fsa team (Next-gen Kaldi) that speaks the voices you create in more than 600 languages. It writes each passage all at once instead of word by word, so you can set the speed or make speech fit an exact length, handy for dubbing.',
+    strengths: [
+      '600+ languages, detected from your text',
+      'Close voice cloning',
+      'Set the speed, or an exact length in seconds',
+      'About real-time speed; twice as fast with fewer quality steps'
+    ],
+    limits: ['No built-in voices: design or clone a voice first', 'No style instructions or voice design', 'Plays once each passage is ready'],
+    colors: ['#16a34a', '#2563eb'],
+    // The ones Voiceify can name; the model reads 600+.
+    languages: STT_LANGUAGES.map((l) => l.id),
+    languagesLabel: '600+ languages',
+    autoLanguage: true,
+    usesTranscript: true,
+    optional: true,
+    features: { builtInVoices: false, styleInstructions: false, voiceCloning: true, voiceDesign: false },
+    params: [
+      {
+        key: 'speed',
+        engineKey: 'speed',
+        label: 'Speed',
+        help: 'How fast the voice talks, compared with its recording. 1.0 keeps the recording’s own pace.',
+        min: 0.7,
+        max: 1.5,
+        step: 0.05,
+        default: 1,
+        unit: '×',
+        left: 'Slower',
+        right: 'Faster'
+      },
+      {
+        key: 'steps',
+        engineKey: 'num_steps',
+        label: 'Quality steps',
+        help: 'How many refining passes the model makes over each passage (its step count). 16 is about twice as fast and usually sounds the same; below 12, words can come out wrong. Default 32.',
+        min: 8,
+        max: 64,
+        step: 1,
+        default: 32,
+        integer: true,
+        left: 'Faster',
+        right: 'More passes'
+      },
+      {
+        key: 'length',
+        engineKey: 'target_seconds',
+        label: 'Exact length',
+        help: 'Make the whole clip last exactly this long, for dubbing or fitting a slot. Natural lets the voice set its own pace (and uses Speed). Very short lengths sound rushed.',
+        min: 0,
+        max: 120,
+        step: 0.5,
+        default: 0,
+        unit: ' s',
+        zeroLabel: 'Natural',
+        advanced: true,
+        left: 'Natural',
+        right: '2 min'
+      },
+      {
+        key: 'guidance',
+        engineKey: 'guidance_scale',
+        label: 'Guidance',
+        help: 'How strictly it sticks to the voice and your words (classifier-free guidance). Higher sounds closer and clearer but can get strained; lower is looser. Default 2.0.',
+        min: 0.5,
+        max: 4,
+        step: 0.1,
+        default: 2,
+        advanced: true,
+        left: 'Relaxed',
+        right: 'Strict'
+      }
+    ],
+    voices: []
+  },
+  {
     id: 'qwen3-asr',
     name: 'Qwen3-ASR',
     vendor: 'Alibaba Qwen',
@@ -468,6 +551,18 @@ export function paramsFor(
     out[spec.key] = typeof v === 'number' && isFinite(v) ? Math.min(spec.max, Math.max(spec.min, v)) : spec.default
   }
   return out
+}
+
+/** A setting's value as shown next to its slider. */
+export function formatParam(spec: ParamSpec, v: number): string {
+  if (v === 0 && spec.zeroLabel) return spec.zeroLabel
+  const n = spec.integer ? String(Math.round(v)) : spec.step >= 0.5 ? v.toFixed(1) : v.toFixed(2)
+  return n + (spec.unit ?? '')
+}
+
+/** How many languages a family speaks, in words. */
+export function languagesLabel(p: Provider): string {
+  return p.languagesLabel ?? (p.languages.length > 1 ? `${p.languages.length} languages` : 'English only')
 }
 
 /** Providers (TTS) that can speak a given voice. Built-in voices belong to one; your own voices work with any that can clone. */

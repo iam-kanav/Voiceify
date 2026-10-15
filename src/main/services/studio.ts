@@ -347,7 +347,9 @@ export async function generateScript(req: ScriptRequest, opts: GenerateOptions =
     const base = req.settingsByProvider?.[provider.id] ?? {}
     // Panel instructions direct the default voice; a tag's style directs its own line.
     const instruct = s.speaker ? (s.style ?? '') : (s.style ?? base.instruct ?? '')
-    return { seg: s, voice, provider, settings: { ...base, instruct }, modelId: req.modelByProvider?.[provider.id] }
+    // An exact length (OmniVoice) is meant for a whole clip, so each part of a script keeps its natural pace.
+    const params = provider.params.some((p) => p.key === 'length') ? { ...base.params, length: 0 } : base.params
+    return { seg: s, voice, provider, settings: { ...base, instruct, params }, modelId: req.modelByProvider?.[provider.id] }
   })
 
   const scriptId = opts.jobId ?? `script_${randomUUID().slice(0, 8)}`

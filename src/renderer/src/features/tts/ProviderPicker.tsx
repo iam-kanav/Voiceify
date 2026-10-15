@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Check, ChevronDown, Download, Loader2, Minus } from 'lucide-react'
 import type { ModelInfo, Provider } from '@shared/types'
 import { formatBytes } from '@shared/catalog'
-import { TTS_PROVIDERS } from '@shared/providers'
+import { languagesLabel, TTS_PROVIDERS } from '@shared/providers'
 import { Popover } from '@/components/Popover'
 import { InfoTip } from '@/components/InfoTip'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
@@ -16,7 +16,7 @@ import { cn, studio } from '@/lib/api'
 export function featureChips(p: Provider): { label: string; on: boolean }[] {
   return [
     { label: p.voices.length ? `${p.voices.length} built-in voices` : 'Built-in voices', on: p.features.builtInVoices },
-    { label: p.languages.length > 1 ? `${p.languages.length} languages` : 'English only', on: true },
+    { label: languagesLabel(p), on: true },
     { label: 'Your own voices', on: p.features.voiceCloning },
     { label: 'Style instructions', on: p.features.styleInstructions },
     { label: 'Voice design', on: p.features.voiceDesign }

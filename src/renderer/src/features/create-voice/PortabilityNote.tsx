@@ -28,7 +28,7 @@ export function PortabilityNote({ mode, designer: designerId = 'qwen3-tts' }: { 
         </div>
       ) : (
         <p className="text-[13px] text-ink-2">
-          <b className="font-medium text-ink">Your clone works with every model that supports your own voices.</b> {transcriptUsers.join(' and ')}{' '}
+          <b className="font-medium text-ink">Your clone works with every model that supports your own voices.</b> {new Intl.ListFormat('en', { type: 'conjunction' }).format(transcriptUsers).replace(', and', ' and')}{' '}
           {transcriptUsers.length === 1 ? 'uses' : 'use'} the transcript for a closer match; models that only need the audio ignore it.
         </p>
       )}

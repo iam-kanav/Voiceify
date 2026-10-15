@@ -19,7 +19,7 @@ import {
   Fingerprint,
   Wind
 } from 'lucide-react'
-import { ALL_LANGUAGES, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
+import { ALL_LANGUAGES, formatParam, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
 import { SCRIPT_EXAMPLE } from '@shared/script'
 import { INSTRUCT_PRESETS } from '@shared/voices'
 import { PageHeader } from '@/components/PageHeader'
@@ -411,7 +411,7 @@ export default function TextToSpeech() {
                       onChange={(v) => setParam(spec.key, v)}
                       left={spec.left}
                       right={spec.right}
-                      format={(v) => (spec.integer ? String(Math.round(v)) : v.toFixed(2))}
+                      format={(v) => formatParam(spec, v)}
                       hint={spec.help}
                     />
                   ))}
@@ -446,7 +446,7 @@ export default function TextToSpeech() {
                                   onChange={(v) => setParam(spec.key, v)}
                                   left={spec.left}
                                   right={spec.right}
-                                  format={(v) => (spec.integer ? String(Math.round(v)) : v.toFixed(2))}
+                                  format={(v) => formatParam(spec, v)}
                                   hint={spec.help}
                                 />
                               ))}

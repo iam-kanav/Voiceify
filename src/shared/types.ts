@@ -52,6 +52,10 @@ export interface ParamSpec {
   advanced?: boolean
   left?: string
   right?: string
+  /** Shown after the value (e.g. " s"). */
+  unit?: string
+  /** Shown instead of 0, when 0 means "off" (e.g. "Natural"). */
+  zeroLabel?: string
 }
 
 /** A model family (e.g. Qwen3-TTS, Pocket TTS). See src/shared/providers.ts. */
@@ -70,6 +74,8 @@ export interface Provider {
   colors: [string, string]
   /** Language ids it can speak (see ALL_LANGUAGES). */
   languages: string[]
+  /** How to describe its languages when the list above is only a sample (e.g. "600+ languages"). */
+  languagesLabel?: string
   /** Works out the language from the text itself, so there's no language setting to pick. */
   autoLanguage?: boolean
   /** Uses a cloned voice's transcript for a closer match (others only need the audio). */

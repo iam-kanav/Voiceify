@@ -20,8 +20,8 @@ import { usePlayerPadding } from '@/lib/useGenerate'
 type Filter = 'all' | 'installed' | 'recommended'
 
 /** Roles that are a whole family on their own (one download does everything), so their header would repeat the family. */
-const SINGLE_ROLE = ['voices-and-cloning', 'design-and-cloning']
-const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'design-and-cloning', 'voice-cloning', 'voice-design', 'voice-fingerprints', 'transcription', 'sound-effects', 'speech-enhancement', 'community', 'custom']
+const SINGLE_ROLE = ['voices-and-cloning', 'design-and-cloning', 'cloning-only']
+const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'design-and-cloning', 'cloning-only', 'voice-cloning', 'voice-design', 'voice-fingerprints', 'transcription', 'sound-effects', 'speech-enhancement', 'community', 'custom']
 const GRID = 'grid grid-cols-[minmax(220px,1.6fr)_76px_92px_92px_128px_292px] items-center gap-4'
 
 export default function Models() {

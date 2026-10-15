@@ -28,7 +28,7 @@ Text to speech, voice design and voice cloning with multiple open-source AI mode
 
 - **Private by design.** Your text, recordings and voices never leave your computer. After setup, everything works offline.
 - **Free to run.** No subscriptions or character quotas. Generate as much audio as your hardware allows.
-- **Several open models, one studio.** [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) for expressive speech in 10 languages, voice design and high-fidelity cloning; [Pocket TTS](https://huggingface.co/kyutai/pocket-tts) for tiny (140 MB), very fast English voices and cloning; [VoxCPM2](https://huggingface.co/openbmb/VoxCPM2) for studio-quality (48 kHz) voice design and cloning in 30 languages, with style instructions on your own voices. Pick a model and the interface adapts to what it can do.
+- **Several open models, one studio.** [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) for expressive speech in 10 languages, voice design and high-fidelity cloning; [Pocket TTS](https://huggingface.co/kyutai/pocket-tts) for tiny (140 MB), very fast English voices and cloning; [VoxCPM2](https://huggingface.co/openbmb/VoxCPM2) for studio-quality (48 kHz) voice design and cloning in 30 languages, with style instructions on your own voices; [OmniVoice](https://github.com/k2-fsa/OmniVoice) for your own voices in 600+ languages, at a speed or exact length you set. Pick a model and the interface adapts to what it can do.
 - **Speech to text, too.** Transcribe any audio or video with [Qwen3-ASR](https://huggingface.co/collections/Qwen/qwen3-asr) or OpenAI [Whisper](https://huggingface.co/openai/whisper-large-v3), export subtitles, or translate speech into English.
 - **Speech enhancement.** Remove background noise from a recording, or fully restore it (bandwidth, clarity, 44.1 kHz) with [Resemble Enhance](https://github.com/resemble-ai/resemble-enhance), and compare the original with the result.
 - **Sound effects.** Describe a sound and get up to four takes of 44.1 kHz stereo foley, ambience or UI sounds in a couple of seconds, with [Stable Audio 3 Small SFX](https://huggingface.co/stabilityai/stable-audio-3-small-sfx) running on Stability AI's official MLX port. Powered by Stability AI.
@@ -129,16 +129,16 @@ Also included: a generation history (keep everything automatically, or only what
 
 Pick a model family in Text to Speech and the interface adapts: options a model can't use disappear, and model-specific settings come with plain-language explanations.
 
-| | Qwen3-TTS (Alibaba Qwen) | Pocket TTS (Kyutai) | VoxCPM2 (OpenBMB) |
-|---|---|---|---|
-| Built-in voices | 9, with style instructions | 8 | — (speaks voices you create) |
-| Languages | 10 | English | 30, detected from the text |
-| Your own voices (cloning) | ✓ (separate Voice Cloning model) | ✓ (same model) | ✓ (same model), with style instructions |
-| Voice design | ✓ (Voice Design model) | — (use a voice designed elsewhere) | ✓ (same model) |
-| Audio | 24 kHz | 24 kHz | 48 kHz |
-| Speed on an M4 (8-bit) | ~1.6× faster than real time | Several times faster than real time | ~2× slower than real time |
-| Download | 2–4.5 GB per model | 90–240 MB | 2.3–5 GB (one model) |
-| License | Apache-2.0 | CC-BY-4.0 | Apache-2.0 |
+| | Qwen3-TTS (Alibaba Qwen) | Pocket TTS (Kyutai) | VoxCPM2 (OpenBMB) | OmniVoice (k2-fsa) |
+|---|---|---|---|---|
+| Built-in voices | 9, with style instructions | 8 | — (speaks voices you create) | — (speaks voices you create) |
+| Languages | 10 | English | 30, detected from the text | 600+, detected from the text |
+| Your own voices (cloning) | ✓ (separate Voice Cloning model) | ✓ (same model) | ✓ (same model), with style instructions | ✓ (same model), with speed or exact length |
+| Voice design | ✓ (Voice Design model) | — (use a voice designed elsewhere) | ✓ (same model) | — (use a voice designed elsewhere) |
+| Audio | 24 kHz | 24 kHz | 48 kHz | 24 kHz |
+| Speed on an M4 (8-bit) | ~1.6× faster than real time | Several times faster than real time | ~2× slower than real time | About real time (full precision); ~1.7× faster than real time at 16 steps |
+| Download | 2–4.5 GB per model | 90–240 MB | 2.3–5 GB (one model) | 2 GB (one model) |
+| License | Apache-2.0 | CC-BY-4.0 | Apache-2.0 | Apache-2.0 (audio tokenizer: Boson Higgs Audio 2 Community License) |
 
 Within Qwen3-TTS, each task uses its own model; Voiceify names them by what they do and shows the open-source name underneath:
 
@@ -151,6 +151,7 @@ Within Qwen3-TTS, each task uses its own model; Voiceify names them by what they
 | **Voice Fingerprints** (24 MB, automatic) | Qwen3-TTS 1.7B speaker encoder (taken from the Base model) | Turns each saved voice into a fingerprint for Built-in Voices (Large) |
 | **Pocket TTS** | Kyutai Pocket TTS (100M) | Built-in voices and cloning in one tiny model |
 | **VoxCPM2** (optional) | OpenBMB VoxCPM2 (2B) | Voice design, very close cloning and style instructions with your own voices, in one model; 30 languages, 48 kHz |
+| **OmniVoice** (optional, 2 GB) | k2-fsa OmniVoice (Qwen3-0.6B backbone, Higgs Audio v2 tokenizer) | Speaks your own voices in 600+ languages; set the speed or an exact length (dubbing) |
 | **Qwen3-ASR** · Small / Large | Qwen3-ASR 0.6B / 1.7B | Speech to text in 30 languages; also auto-fills transcripts when cloning |
 | **Whisper** · Turbo / Large (optional) | OpenAI Whisper Large v3 Turbo (809M) / Large v3 (1.55B) | Speech to text in 99 languages with sentence timestamps; Large also translates into English |
 | **Speech Enhancement** (optional, 710 MB) | Resemble Enhance (Resemble AI), MLX port | Denoise or fully enhance speech recordings; 44.1 kHz output |
@@ -158,7 +159,7 @@ Within Qwen3-TTS, each task uses its own model; Voiceify names them by what they
 
 Every Qwen3-TTS model comes in **full precision** and in compressed **8 / 6 / 5 / 4-bit** versions. Fewer bits mean a smaller download, less memory and faster speech, at some cost to expressiveness. 8-bit sounds almost identical to full precision and is the default recommendation for most machines.
 
-Pocket TTS comes in full precision and 8 / 6 / 4-bit; VoxCPM2 and Whisper in full precision, 8-bit and 4-bit.
+Pocket TTS comes in full precision and 8 / 6 / 4-bit; VoxCPM2 and Whisper in full precision, 8-bit and 4-bit; OmniVoice in full precision (the 8- and 4-bit conversions on Hugging Face are made for a different runtime).
 
 Weights are downloaded from Hugging Face ([mlx-community](https://huggingface.co/mlx-community) conversions of the official releases). Voiceify itself contains no model weights.
 
@@ -174,7 +175,7 @@ Then just ask: *“Read the release notes aloud in the Aiden voice, calm and pro
 
 | Tool | What it does |
 |---|---|
-| `text_to_speech` | Speak text with any voice and model family (`provider: "qwen3-tts"`, `"pocket-tts"` or `"voxcpm2"`), with optional style instructions, language and in-app playback |
+| `text_to_speech` | Speak text with any voice and model family (`provider: "qwen3-tts"`, `"pocket-tts"`, `"voxcpm2"` or `"omnivoice"`), with optional style instructions, language and in-app playback |
 | `list_voices` | List built-in, cloned and designed voices |
 | `design_voice` | Invent a voice from a description (Qwen3-TTS or VoxCPM2) and optionally save it |
 | `clone_voice` | Clone a voice from an audio file (auto-transcribed) |
@@ -259,6 +260,7 @@ docs/images/       README screenshots
 - [x] Script mode: several voices in one text
 - [x] Speech enhancement (Resemble Enhance)
 - [x] VoxCPM2: studio-quality design and cloning in 30 languages
+- [x] OmniVoice: your voices in 600+ languages, with exact-length control
 - [ ] More model providers (multilingual Pocket TTS, …)
 - [ ] Windows and Linux support (needs a non-MLX inference backend)
 - [ ] Signed and notarized macOS builds
@@ -301,10 +303,11 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and ou
 - [Kyutai](https://kyutai.org) for Pocket TTS (CC-BY-4.0)
 - [OpenAI](https://github.com/openai/whisper) for Whisper (MIT)
 - [OpenBMB](https://github.com/OpenBMB/VoxCPM) for VoxCPM2 (Apache-2.0)
+- [k2-fsa](https://github.com/k2-fsa/OmniVoice) for OmniVoice (Apache-2.0), and [Boson AI](https://github.com/boson-ai/higgs-audio) for the Higgs Audio v2 tokenizer it uses
 - [Apple MLX](https://github.com/ml-explore/mlx) and [mlx-audio](https://github.com/Blaizzy/mlx-audio) for fast on-device inference
 - [mlx-community](https://huggingface.co/mlx-community) for the MLX model conversions
 - Everyone behind the libraries listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 ## License
 
-Voiceify is released under the [Apache License 2.0](LICENSE). Model weights are downloaded separately and keep their own licenses (Qwen3: Apache-2.0, Pocket TTS: CC-BY-4.0, VoxCPM2: Apache-2.0, Whisper: MIT); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Voiceify is released under the [Apache License 2.0](LICENSE). Model weights are downloaded separately and keep their own licenses (Qwen3: Apache-2.0, Pocket TTS: CC-BY-4.0, VoxCPM2: Apache-2.0, OmniVoice: Apache-2.0 with its audio tokenizer under the Boson Higgs Audio 2 Community License, Whisper: MIT); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

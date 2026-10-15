@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { create } from 'zustand'
 import { formatBytes } from '@shared/catalog'
-import { TTS_PROVIDERS } from '@shared/providers'
+import { languagesLabel, TTS_PROVIDERS } from '@shared/providers'
 import { AnimatePresence, motion } from 'motion/react'
 import { CheckCircle2, FileAudio, Loader2, Pause, Play, Trash2, Wand } from 'lucide-react'
 import { Badge, Button, Field, Input, Textarea } from '@/components/ui'
@@ -273,7 +273,7 @@ export function ClonePanel() {
                 'Speak naturally, in the style you want to reproduce.',
                 'Avoid music, reverb, laughter or overlapping speakers.',
                 'Keep the transcript accurate — the clone is aligned against it.',
-                `Your clone speaks every language of the model reading it: ${CLONERS.map((p) => `${p.languages.length > 1 ? `${p.languages.length} languages` : 'English'} with ${p.name}`).join(', ')}.`
+                `Your clone speaks every language of the model reading it: ${CLONERS.map((p) => `${p.languages.length > 1 ? languagesLabel(p) : 'English'} with ${p.name}`).join(', ')}.`
               ].map((t) => (
                 <li key={t} className="flex gap-2.5">
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />

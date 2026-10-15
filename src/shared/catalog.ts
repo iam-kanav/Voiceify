@@ -63,6 +63,11 @@ export const ROLES: Record<string, { label: string; blurb: string; why: string }
     blurb: 'One model designs new voices, clones yours, and speaks them with style instructions.',
     why: 'Everything VoxCPM2 does comes in a single download. It has no built-in voices; it speaks the voices you create. Pick a precision; 8-bit is the sweet spot.'
   },
+  'cloning-only': {
+    label: 'Voice Cloning',
+    blurb: 'One model speaks the voices you clone or design.',
+    why: 'Everything comes in a single download. It has no built-in voices; it speaks the voices you create in Create Voice.'
+  },
   'voice-fingerprints': {
     label: 'Voice Fingerprints',
     blurb: 'Lets the Large Built-in Voices model speak the voices you create.',
@@ -279,6 +284,33 @@ const voxcpm: ModelVariant[] = VOXCPM.map(([q, revision, size, quality, speed, s
   description: 'Designs voices from a description and clones voices very closely, with style instructions. 30 languages, 48 kHz.',
   tags: ['2B']
 }))
+
+// OmniVoice (k2-fsa). Only the full-precision conversion runs on mlx-audio; the 8- and 4-bit repos use
+// another runtime's quantization format. About real time at 32 steps on an M4 (twice as fast at 16).
+const omnivoice: ModelVariant = {
+  id: 'omnivoice-bf16',
+  provider: 'omnivoice',
+  name: `OmniVoice · ${PRECISION_INFO.bf16.label}`,
+  family: 'OmniVoice',
+  familyId: 'omnivoice',
+  role: ROLES['cloning-only'].label,
+  roleId: 'cloning-only',
+  sizeLabel: '0.6B',
+  precisionLabel: PRECISION_INFO.bf16.label,
+  summary: 'The original weights · 600+ languages',
+  officialName: 'k2-fsa OmniVoice (Qwen3-0.6B backbone)',
+  task: 'tts',
+  capabilities: ['voice-clone'],
+  params: '0.6B',
+  quant: 'bf16',
+  source: { type: 'hf-mlx', repo: 'mlx-community/OmniVoice-bfloat16', revision: '6119f7072580cc30c3cbdf496269216b03ad9742' },
+  sizeBytes: 2042329127,
+  quality: 4.5,
+  speed: 3,
+  minRamGB: 6,
+  description: 'Clones voices in 600+ languages, with speed and exact-length control. 24 kHz.',
+  tags: ['0.6B']
+}
 
 /** Qwen3-TTS's speaker encoder, taken out of the Large Voice Cloning model (24 MB of a 3 GB file). */
 export const FINGERPRINT_HELPER_ID = 'qwen3-tts-voice-fingerprints'
@@ -547,7 +579,7 @@ const community: ModelVariant[] = [
   }
 ]
 
-export const CATALOG: ModelVariant[] = [...official, fingerprints, ...pocket, ...voxcpm, ...helpers, ...whisper, ...soundEffects, ...enhancers, ...community]
+export const CATALOG: ModelVariant[] = [...official, fingerprints, ...pocket, ...voxcpm, omnivoice, ...helpers, ...whisper, ...soundEffects, ...enhancers, ...community]
 
 export const CATALOG_BY_ID = new Map(CATALOG.map((m) => [m.id, m]))
 

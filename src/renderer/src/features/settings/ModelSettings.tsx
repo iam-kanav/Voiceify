@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import type { Provider } from '@shared/types'
-import { paramsFor, PROVIDERS } from '@shared/providers'
+import { formatParam, paramsFor, PROVIDERS } from '@shared/providers'
 import { Slider } from '@/components/Slider'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { Badge, Card, Tabs } from '@/components/ui'
@@ -13,6 +13,7 @@ const STEP_NOTES: Record<string, string> = {
   'qwen3-tts': 'Qwen3-TTS speaks token by token, so it has no step count; its quality knobs are the sampling settings below.',
   'pocket-tts': '“Quality steps” is Pocket TTS’s decoding step count.',
   voxcpm2: '“Quality steps” is VoxCPM2’s diffusion step count; 6 is noticeably faster than the default 10.',
+  omnivoice: '“Quality steps” is how many refining passes OmniVoice makes; 16 is about twice as fast as the default 32.',
   'stable-audio': '“Quality steps” is the diffusion step count; the model is tuned for 8.'
 }
 
@@ -95,7 +96,7 @@ function FamilyDefaults({ provider: p }: { provider: Provider }) {
             onChange={(v) => commit({ ...values, [spec.key]: spec.integer ? Math.round(v) : v })}
             left={spec.left}
             right={spec.right}
-            format={(v) => (spec.integer ? String(Math.round(v)) : spec.step >= 0.5 ? v.toFixed(1) : v.toFixed(2))}
+            format={(v) => formatParam(spec, v)}
             hint={`${spec.help}${values[spec.key] !== spec.default ? ` (Model default: ${spec.default}.)` : ''}`}
           />
         ))}

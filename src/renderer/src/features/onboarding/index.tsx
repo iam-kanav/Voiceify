@@ -72,6 +72,15 @@ const GROUPS: Group[] = [
     optional: true
   },
   {
+    key: 'omnivoice',
+    provider: 'omnivoice',
+    familyIds: ['omnivoice'],
+    title: 'OmniVoice',
+    body: 'Speaks your own voices in 600+ languages, at a speed or exact length you set (no built-in voices)',
+    colors: ['#16a34a', '#2563eb'],
+    optional: true
+  },
+  {
     key: 'asr',
     provider: 'qwen3-asr',
     familyIds: ['qwen3-asr-0.6b', 'qwen3-asr-1.7b', 'whisper-large-v3-turbo', 'whisper-large-v3'],

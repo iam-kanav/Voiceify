@@ -257,8 +257,11 @@ def handle_tts_generate(job: Job) -> Dict[str, Any]:
     p = job.params
     n = np()
     model = CACHE.get(p["model_path"], "tts")
-    if model_type(p["model_path"]) == "voxcpm2":
+    kind = model_type(p["model_path"])
+    if kind == "voxcpm2":
         return generate_voxcpm(job, model)
+    if kind == "omnivoice":
+        return generate_omnivoice(job, model)
     sr = int(model.sample_rate)
     stream = bool(p.get("stream", True))
 
@@ -362,36 +365,23 @@ class Cancelled(Exception):
     pass
 
 
-def generate_voxcpm(job: Job, model) -> Dict[str, Any]:
-    """VoxCPM2 makes one passage at a time and returns it whole, so long text is split into
-    passages that are spoken (and streamed) one after another.
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
 
-    Voices you created: the reference recording plus its transcript gives the closest copy (the
-    model continues from the recording). With style instructions it clones from the recording alone
-    and follows the instructions instead. Voice design: the first passage invents the voice from
-    the description; later passages continue from it, so a long text keeps one voice.
-    """
+
+def passages_of(text: str, max_chars: int, max_cjk: int) -> list:
+    """Passages for models that speak one passage at a time. Chinese, Japanese and Korean pack
+    much more speech into each character, so their passages hold fewer characters."""
+    limit = max_cjk if len(_CJK.findall(text)) > len(text) * 0.3 else max_chars
+    return [s for s in segment_text(text, max_chars=limit).split("\n") if s.strip()]
+
+
+def speak_passages(job: Job, sr: int, passages: list, speak: Callable[[int, str], Any]) -> Dict[str, Any]:
+    """For models that make one passage at a time and return it whole: the passages are spoken one
+    after another, and each is streamed as soon as it's ready. `speak(i, passage)` returns the
+    audio, and may raise Cancelled to stop part-way through a passage."""
     p = job.params
     n = np()
-    sr = int(model.sample_rate)
     stream = bool(p.get("stream", True))
-    passages = [s for s in segment_text(p["text"], max_chars=240).split("\n") if s.strip()]
-    settings = {k: p[k] for k in ("inference_timesteps", "cfg_value") if p.get(k) is not None}
-    instruct = (p.get("instruct") or "").strip() or None
-    ref_audio = p.get("ref_audio") or None
-    ref_text = (p.get("ref_text") or "").strip() or None
-    designing = instruct and not ref_audio
-
-    # Stops a passage part-way when the job is cancelled (the model has no hook of its own).
-    decoder = model.feat_decoder
-    original_sample = decoder.sample
-
-    def sample(*a, **kw):
-        if job.cancelled:
-            raise Cancelled()
-        return original_sample(*a, **kw)
-
-    decoder.sample = sample
     try:
         mx().reset_peak_memory()
     except Exception:
@@ -402,24 +392,11 @@ def generate_voxcpm(job: Job, model) -> Dict[str, Any]:
     t0 = time.time()
     first_chunk_at = None
     pieces = []
-    tmp_ref = None
     try:
         for i, passage in enumerate(passages):
             if job.cancelled:
                 break
-            kwargs: Dict[str, Any] = dict(text=passage, **settings)
-            if ref_audio:
-                kwargs["ref_audio"] = ref_audio
-                if instruct:
-                    kwargs["instruct"] = instruct
-                elif ref_text:
-                    kwargs.update(prompt_audio=ref_audio, prompt_text=ref_text.rstrip() + " ")
-            elif instruct:
-                kwargs["instruct"] = instruct
-            # The model stops by itself; this only caps a runaway passage (6.25 patches ≈ 1 s).
-            kwargs["max_tokens"] = int(min(2000, 80 + len(passage) * 4))
-            result = next(model.generate(**kwargs))
-            audio = n.asarray(result.audio, dtype=n.float32).reshape(-1)
+            audio = n.asarray(speak(i, passage), dtype=n.float32).reshape(-1)
             if audio.size == 0:
                 continue
             if pieces:
@@ -431,17 +408,8 @@ def generate_voxcpm(job: Job, model) -> Dict[str, Any]:
                 first_chunk_at = time.time() - t0
             if stream:
                 job.emit("chunk", {"pcm": base64.b64encode(to_pcm16(audio)).decode("ascii"), "sr": sr})
-            if designing and i == 0 and len(passages) > 1:
-                # Keep the invented voice for the rest of the text.
-                tmp_ref = p["out_path"] + ".voice.wav"
-                write_wav(tmp_ref, audio, sr)
-                ref_audio, ref_text, instruct = tmp_ref, passage, None
     except Cancelled:
         pass
-    finally:
-        decoder.sample = original_sample
-        if tmp_ref and os.path.exists(tmp_ref):
-            os.remove(tmp_ref)
 
     if job.cancelled:
         return {"cancelled": True}
@@ -469,6 +437,120 @@ def generate_voxcpm(job: Job, model) -> Dict[str, Any]:
         "tokens": 0,
         "peak_memory_gb": peak,
     }
+
+
+def generate_voxcpm(job: Job, model) -> Dict[str, Any]:
+    """VoxCPM2 makes one passage at a time and returns it whole, so long text is split into
+    passages that are spoken (and streamed) one after another.
+
+    Voices you created: the reference recording plus its transcript gives the closest copy (the
+    model continues from the recording). With style instructions it clones from the recording alone
+    and follows the instructions instead. Voice design: the first passage invents the voice from
+    the description; later passages continue from it, so a long text keeps one voice.
+    """
+    p = job.params
+    sr = int(model.sample_rate)
+    passages = [s for s in segment_text(p["text"], max_chars=240).split("\n") if s.strip()]
+    settings = {k: p[k] for k in ("inference_timesteps", "cfg_value") if p.get(k) is not None}
+    voice = {
+        "instruct": (p.get("instruct") or "").strip() or None,
+        "ref_audio": p.get("ref_audio") or None,
+        "ref_text": (p.get("ref_text") or "").strip() or None,
+    }
+    designing = voice["instruct"] and not voice["ref_audio"]
+    tmp_ref = p["out_path"] + ".voice.wav"
+
+    def speak(i: int, passage: str):
+        instruct, ref_audio, ref_text = voice["instruct"], voice["ref_audio"], voice["ref_text"]
+        kwargs: Dict[str, Any] = dict(text=passage, **settings)
+        if ref_audio:
+            kwargs["ref_audio"] = ref_audio
+            if instruct:
+                kwargs["instruct"] = instruct
+            elif ref_text:
+                kwargs.update(prompt_audio=ref_audio, prompt_text=ref_text.rstrip() + " ")
+        elif instruct:
+            kwargs["instruct"] = instruct
+        # The model stops by itself; this only caps a runaway passage (6.25 patches ≈ 1 s).
+        kwargs["max_tokens"] = int(min(2000, 80 + len(passage) * 4))
+        audio = np().asarray(next(model.generate(**kwargs)).audio, dtype=np().float32).reshape(-1)
+        if designing and i == 0 and len(passages) > 1 and audio.size:
+            # Keep the invented voice for the rest of the text.
+            write_wav(tmp_ref, audio, sr)
+            voice.update(ref_audio=tmp_ref, ref_text=passage, instruct=None)
+        return audio
+
+    # Stops a passage part-way when the job is cancelled (the model has no hook of its own).
+    decoder = model.feat_decoder
+    original_sample = decoder.sample
+
+    def sample(*a, **kw):
+        if job.cancelled:
+            raise Cancelled()
+        return original_sample(*a, **kw)
+
+    decoder.sample = sample
+    try:
+        return speak_passages(job, sr, passages, speak)
+    finally:
+        decoder.sample = original_sample
+        if os.path.exists(tmp_ref):
+            os.remove(tmp_ref)
+
+
+def generate_omnivoice(job: Job, model) -> Dict[str, Any]:
+    """OmniVoice fills in a whole passage at once instead of speaking left to right, so each
+    passage's length is decided up front: estimated from how fast the voice talks in its recording
+    (scaled by Speed), or an exact total length shared out across the passages.
+
+    It copies a voice from the recording plus its transcript; the transcript is read as the start of
+    the text, which is how the model lines the two up.
+    """
+    p = job.params
+    if not p.get("ref_audio"):
+        raise RuntimeError("OmniVoice speaks the voices you create. Pick one of your own voices.")
+    from mlx_audio.tts.models.omnivoice.duration import RuleDurationEstimator
+    from mlx_audio.tts.models.omnivoice.utils import create_voice_clone_prompt
+
+    sr = int(model.sample_rate)
+    rate = sr / 960  # audio tokens per second
+    ref_text = (p.get("ref_text") or "").strip() or None
+    ref_tokens = create_voice_clone_prompt(p["ref_audio"], tokenizer=model.audio_tokenizer, ref_text=ref_text)
+    passages = passages_of(p["text"], 200, 70)
+
+    # Natural length of each passage, in audio tokens, at the pace of the reference recording.
+    estimator = RuleDurationEstimator()
+    if ref_text:
+        natural = [estimator.estimate_duration(s, ref_text, int(ref_tokens.shape[0])) for s in passages]
+    else:
+        natural = [estimator.estimate_duration(s, "Nice to meet you.", 25) * 1.15 for s in passages]
+    natural = [max(10.0, t) for t in natural]
+    exact = float(p.get("target_seconds") or 0)
+    if exact > 0:
+        speech = max(0.5 * len(passages), exact - 0.12 * (len(passages) - 1))
+        seconds = [speech * t / sum(natural) for t in natural]
+    else:
+        speed = float(p.get("speed") or 1.0)
+        seconds = [t / rate / speed for t in natural]
+    settings = dict(num_steps=int(p.get("num_steps", 32)), guidance_scale=float(p.get("guidance_scale", 2.0)))
+
+    def speak(i: int, passage: str):
+        result = next(model.generate(text=passage, duration_s=seconds[i], ref_tokens=ref_tokens, ref_text=ref_text, **settings))
+        return result.audio
+
+    # Stops a passage part-way (between refining steps) when the job is cancelled.
+    original_prepare = model._prepare_embed_inputs
+
+    def prepare(*a, **kw):
+        if job.cancelled:
+            raise Cancelled()
+        return original_prepare(*a, **kw)
+
+    model._prepare_embed_inputs = prepare
+    try:
+        return speak_passages(job, sr, passages, speak)
+    finally:
+        model._prepare_embed_inputs = original_prepare
 
 
 def write_wav(path: str, audio, sr: int) -> None:

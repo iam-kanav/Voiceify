@@ -137,7 +137,7 @@ export function createMcpServer(baseUrl: string) {
         provider: z
           .string()
           .optional()
-          .describe('Model family to speak with: "qwen3-tts" (expressive, 10 languages), "pocket-tts" (tiny, fast, English) or "voxcpm2" (closest cloning, 30 languages, your own voices only). Built-in voices belong to one family; your own voices work with any family that can clone.'),
+          .describe('Model family to speak with: "qwen3-tts" (expressive, 10 languages), "pocket-tts" (tiny, fast, English), "voxcpm2" (closest cloning, 30 languages, your own voices only) or "omnivoice" (your own voices in 600+ languages; speed and exact length come from Voiceify’s Model settings). Built-in voices belong to one family; your own voices work with any family that can clone.'),
         model: z.string().optional().describe('Specific model variant id from list_models'),
         temperature: z.number().min(0.1).max(1.5).optional().describe('Expressiveness / sampling temperature (default 0.9)'),
         play: z.boolean().optional().describe('Play the result out loud in the app'),
@@ -284,7 +284,7 @@ export function createMcpServer(baseUrl: string) {
       inputSchema: {
         script: z.string().min(1).describe('e.g. "[@Alba]: Did you hear that?\n[@Ryan]: It\'s just the wind."'),
         default_voice: z.string().optional().describe('Voice id or name for untagged text'),
-        provider: z.string().optional().describe('Model family for your own voices, e.g. "qwen3-tts", "pocket-tts" or "voxcpm2"'),
+        provider: z.string().optional().describe('Model family for your own voices, e.g. "qwen3-tts", "pocket-tts", "voxcpm2" or "omnivoice"'),
         language: z.enum(LANG_IDS).optional(),
         pause_seconds: z.number().min(0).max(3).optional().describe('Silence between speakers (default 0.35)'),
         play: z.boolean().optional().describe('Play the result out loud in the app'),
