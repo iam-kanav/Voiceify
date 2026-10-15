@@ -138,9 +138,10 @@ export default function Models() {
           </Card>
         )}
 
-        {/* Sticky so switching families is always one click away, however long a family's list gets. */}
-        <div className="sticky top-0 z-20 -mx-8 space-y-4 border-b border-line bg-canvas/90 px-8 pb-4 pt-4 backdrop-blur-xl">
         <FamilyPicker families={pickable.map((f) => f.provider)} value={familyId} onChange={pick} />
+
+        {/* The filters stay pinned while a long list of versions scrolls by. */}
+        <div className="sticky top-0 z-20 -mx-8 space-y-4 border-b border-line bg-canvas/90 px-8 pb-4 pt-4 backdrop-blur-xl">
 
         <div className="flex items-center justify-between">
           <Tabs
@@ -217,16 +218,16 @@ export default function Models() {
   )
 }
 
-/** Horizontal strip of model families; scrolls sideways when there are many. */
+/** Grid of model families, four to a row; a short last row is centered. */
 function FamilyPicker({ families, value, onChange }: { families: (Provider | undefined)[]; value: string; onChange: (id: string) => void }) {
   const models = useApp((s) => s.models)
   return (
-    <div className="space-y-2">
+    <div className="mx-auto w-full max-w-6xl space-y-2">
       <div className="flex items-center gap-1.5 text-[13px] font-medium">
         Model family
         <InfoTip>Each family is a different open-source model with its own voices, strengths and sizes. Pick one to see its versions.</InfoTip>
       </div>
-      <div className="scroll -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      <div className="flex flex-wrap justify-center gap-2">
         {families.map((p) => {
           const id = p?.id ?? 'extras'
           const mine = models.filter((m) => (p ? m.provider === p.id && m.roleId !== 'community' && m.roleId !== 'custom' : m.roleId === 'community' || m.roleId === 'custom'))
@@ -238,7 +239,7 @@ function FamilyPicker({ families, value, onChange }: { families: (Provider | und
               key={id}
               onClick={() => onChange(id)}
               className={cn(
-                'relative flex w-60 shrink-0 items-start gap-3 rounded-2xl border p-3 text-left transition-colors',
+                'relative flex w-[calc((100%-0.5rem)/2)] items-start gap-3 rounded-2xl border p-3 text-left transition-colors xl:w-[calc((100%-1.5rem)/4)]',
                 active ? 'border-ink' : 'border-line hover:border-line-strong hover:bg-subtle'
               )}
             >
