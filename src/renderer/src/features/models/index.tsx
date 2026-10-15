@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Cpu, Download, ExternalLink, HardDrive, Loader2, MemoryStick, Plus, Sparkles, Star, Trash2, X } from 'lucide-react'
-import type { ModelInfo, Provider } from '@shared/types'
+import type { ModelInfo, Provider, Task } from '@shared/types'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { FeatureChips } from '@/features/tts/ProviderPicker'
 import { formatBytes, PRECISION_HELP, PROVIDERS, ROLES, SIZE_HELP } from '@shared/catalog'
@@ -22,6 +22,15 @@ type Filter = 'all' | 'installed' | 'recommended'
 /** Roles that are a whole family on their own (one download does everything), so their header would repeat the family. */
 const SINGLE_ROLE = ['voices-and-cloning', 'design-and-cloning', 'cloning-only']
 const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'design-and-cloning', 'cloning-only', 'voice-cloning', 'voice-design', 'voice-fingerprints', 'transcription', 'sound-effects', 'speech-enhancement', 'community', 'custom']
+/** What each kind of model is for, as tabs above the family grid. Community and custom models are voice models. */
+const CATEGORIES: { id: Task; label: string }[] = [
+  { id: 'tts', label: 'Text to Speech' },
+  { id: 'asr', label: 'Speech to Text' },
+  { id: 'sfx', label: 'Sound Effects' },
+  { id: 'enhance', label: 'Speech Enhancement' }
+]
+const categoryOf = (p: Provider | undefined): Task => p?.task ?? 'tts'
+
 const GRID = 'grid grid-cols-[minmax(220px,1.6fr)_76px_92px_92px_128px_292px] items-center gap-4'
 
 export default function Models() {
@@ -66,6 +75,18 @@ export default function Models() {
     : (pickable[0]?.provider?.id ?? 'extras')
   const selected = pickable.find((f) => (f.provider?.id ?? 'extras') === familyId)
   const pick = (id: string) => navigate('models', { family: id })
+  // Narrow the grid to one kind of model; picking a kind opens its first family.
+  const [category, setCategory] = useState<'all' | Task>('all')
+  const inCategory = (c: 'all' | Task) => pickable.filter((f) => c === 'all' || categoryOf(f.provider) === c)
+  const pickCategory = (c: 'all' | Task) => {
+    setCategory(c)
+    const first = inCategory(c)[0]
+    if (c !== 'all' && first && categoryOf(selected?.provider) !== c) pick(first.provider?.id ?? 'extras')
+  }
+  // Arriving with a family from elsewhere (e.g. "Other versions") shows its kind.
+  useEffect(() => {
+    setCategory((c) => (c === 'all' || c === categoryOf(selected?.provider) ? c : 'all'))
+  }, [familyId, selected?.provider])
   // Within a family that does several jobs (e.g. Qwen3-TTS), narrow to one job.
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const familyRoles = selected?.roles ?? []
@@ -138,7 +159,17 @@ export default function Models() {
           </Card>
         )}
 
-        <FamilyPicker families={pickable.map((f) => f.provider)} value={familyId} onChange={pick} />
+        <FamilyPicker
+          families={inCategory(category).map((f) => f.provider)}
+          value={familyId}
+          onChange={pick}
+          category={category}
+          categories={[
+            { id: 'all' as const, label: `All · ${pickable.length}` },
+            ...CATEGORIES.map((c) => ({ id: c.id, label: `${c.label} · ${inCategory(c.id).length}` })).filter((c) => !c.label.endsWith(' 0'))
+          ]}
+          onCategory={pickCategory}
+        />
 
         {/* The filters stay pinned while a long list of versions scrolls by. */}
         <div className="sticky top-0 z-20 -mx-8 space-y-4 border-b border-line bg-canvas/90 px-8 pb-4 pt-4 backdrop-blur-xl">
@@ -219,13 +250,30 @@ export default function Models() {
 }
 
 /** Grid of model families, four to a row; a short last row is centered. */
-function FamilyPicker({ families, value, onChange }: { families: (Provider | undefined)[]; value: string; onChange: (id: string) => void }) {
+function FamilyPicker({
+  families,
+  value,
+  onChange,
+  category,
+  categories,
+  onCategory
+}: {
+  families: (Provider | undefined)[]
+  value: string
+  onChange: (id: string) => void
+  category: 'all' | Task
+  categories: { id: 'all' | Task; label: string }[]
+  onCategory: (c: 'all' | Task) => void
+}) {
   const models = useApp((s) => s.models)
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-2">
-      <div className="flex items-center gap-1.5 text-[13px] font-medium">
-        Model family
-        <InfoTip>Each family is a different open-source model with its own voices, strengths and sizes. Pick one to see its versions.</InfoTip>
+    <div className="mx-auto w-full max-w-6xl space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-[13px] font-medium">
+          Model family
+          <InfoTip>Each family is a different open-source model with its own voices, strengths and sizes. Pick one to see its versions.</InfoTip>
+        </div>
+        <Tabs id="model-category" value={category} onChange={onCategory} tabs={categories} />
       </div>
       <div className="flex flex-wrap justify-center gap-2">
         {families.map((p) => {
@@ -256,9 +304,10 @@ function FamilyPicker({ families, value, onChange }: { families: (Provider | und
               <span className="relative min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-semibold">{p?.name ?? 'Community & custom'}</span>
-                  {p?.task === 'asr' && <span className="text-[10px] text-ink-3">Speech to Text</span>}
-                  {p?.task === 'sfx' && <span className="text-[10px] text-ink-3">Sound Effects</span>}
-                  {p?.task === 'enhance' && <span className="text-[10px] text-ink-3">Enhancement</span>}
+                  {/* The kind is only worth saying when every kind is shown. */}
+                  {category === 'all' && p?.task === 'asr' && <span className="text-[10px] text-ink-3">Speech to Text</span>}
+                  {category === 'all' && p?.task === 'sfx' && <span className="text-[10px] text-ink-3">Sound Effects</span>}
+                  {category === 'all' && p?.task === 'enhance' && <span className="text-[10px] text-ink-3">Enhancement</span>}
                 </span>
                 <span className="block truncate text-[11.5px] text-ink-3">{p ? `${p.vendor} · ${p.tagline}` : 'Fine-tunes and your additions'}</span>
                 <span className={cn('mt-1 block text-[11px]', installed ? 'text-success' : 'text-ink-3')}>
