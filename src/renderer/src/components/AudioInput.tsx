@@ -3,6 +3,7 @@ import { Loader2, Mic, Square, Upload } from 'lucide-react'
 import { errorMessage, toast } from './Toast'
 import { cn, formatTime } from '@/lib/api'
 import { useRaf } from '@/lib/useRaf'
+import { openMic } from '@/stores/mic'
 
 /** Shared audio inputs: drop/pick a file, or record from the microphone. */
 
@@ -87,7 +88,8 @@ export function Recorder({
 
   const start = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      const { stream, fellBack } = await openMic({ echoCancellation: true, noiseSuppression: true })
+      if (fellBack) toast.info('Your chosen microphone isn’t connected', 'Recording with the system default instead. You can change it in Settings.')
       const ctx = new AudioContext()
       const src = ctx.createMediaStreamSource(stream)
       analyser.current = ctx.createAnalyser()

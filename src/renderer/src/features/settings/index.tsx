@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ChevronDown, FolderOpen, Monitor, Moon, RefreshCw, Sun, Wrench } from 'lucide-react'
+import { ChevronDown, FolderOpen, Mic, Monitor, Moon, RefreshCw, Sun, Wrench } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge, Button, Card, Tabs } from '@/components/ui'
 import { InfoTip } from '@/components/InfoTip'
@@ -8,6 +8,8 @@ import { SAVE_MODES } from '@/components/SaveMode'
 import { useApp } from '@/stores/app'
 import { cn, studio } from '@/lib/api'
 import { usePlayerPadding } from '@/lib/useGenerate'
+import { Select } from '@/components/Popover'
+import { useMic, useMicDevices } from '@/stores/mic'
 import { ModelSettings } from './ModelSettings'
 
 const ENGINE_BADGE = {
@@ -97,6 +99,10 @@ export default function Settings() {
             </div>
           </Row>
 
+          <Row title="Microphone" body="Used whenever you record in Voiceify (cloning, speech to text, speech enhancement).">
+            <MicPicker />
+          </Row>
+
           <ModelSettings />
 
           <Row title="Storage" body="Models, your voices and generated audio are stored in Voiceify’s data folder on this computer.">
@@ -159,6 +165,28 @@ export default function Settings() {
             </AnimatePresence>
           </Card>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function MicPicker() {
+  const deviceId = useMic((s) => s.deviceId)
+  const { devices, labelled, unlock } = useMicDevices()
+  const missing = !!deviceId && devices.length > 0 && !devices.some((d) => d.deviceId === deviceId)
+  return (
+    <div className="flex items-center gap-2">
+      {!labelled && (
+        <Button size="sm" variant="ghost" icon={<Mic className="size-4" />} onClick={() => unlock().catch(() => undefined)} title="Lets Voiceify show microphone names">
+          Show names
+        </Button>
+      )}
+      <div className="w-72">
+        <Select
+          value={missing ? '' : deviceId}
+          onChange={(v) => useMic.setState({ deviceId: v })}
+          options={[{ value: '', label: 'System default' }, ...devices.map((d) => ({ value: d.deviceId, label: d.label }))]}
+        />
       </div>
     </div>
   )
