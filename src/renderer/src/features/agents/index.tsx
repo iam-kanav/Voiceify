@@ -8,6 +8,7 @@ import { InfoTip } from '@/components/InfoTip'
 import { useApp } from '@/stores/app'
 import { cn } from '@/lib/api'
 import { usePlayerPadding } from '@/lib/useGenerate'
+import { ASR_PROVIDERS, ENHANCE_PROVIDERS, SFX_PROVIDERS, TTS_PROVIDERS } from '@shared/providers'
 
 const NAME = 'voiceify'
 
@@ -94,16 +95,42 @@ const CLIENTS: Client[] = [
   }
 ]
 
-const TOOLS = [
-  ['text_to_speech', 'Speak text with any voice; optional style instructions, language, play out loud'],
-  ['list_voices', 'Built-in, cloned and designed voices'],
-  ['design_voice', 'Invent a voice from a description, optionally save it'],
-  ['clone_voice', 'Clone a voice from an audio file (auto-transcribed)'],
-  ['transcribe_audio', 'Speech to text (Qwen3-ASR or Whisper), with subtitles and translation to English'],
-  ['play_audio', 'Play a past generation in the app'],
-  ['list_history', 'Recent generations with file paths'],
-  ['list_models / install_model', 'Inspect and download models'],
-  ['get_status', 'Engine state and available capabilities']
+/** Model names come from the catalog, so new families show up here by themselves. */
+const names = (list: { name: string }[]) => list.map((p) => p.name).join(', ').replace(/, ([^,]*)$/, ' or $1')
+
+const TOOL_GROUPS: { title: string; tools: [string, string][] }[] = [
+  {
+    title: 'Speech',
+    tools: [
+      ['text_to_speech', `Speak text with any voice and model (${names(TTS_PROVIDERS)}), with style instructions and language`],
+      ['speak_script', 'A dialogue or story with several voices in one clip, using [@Name]: tags'],
+      ['transcribe_audio', `Speech to text (${names(ASR_PROVIDERS)}), with subtitles and translation into English`]
+    ]
+  },
+  {
+    title: 'Voices',
+    tools: [
+      ['list_voices', 'Built-in, cloned and designed voices, and which models can speak each'],
+      ['design_voice', `Invent a voice from a description (${names(TTS_PROVIDERS.filter((p) => p.features.voiceDesign))}), optionally save it`],
+      ['clone_voice', 'Clone a voice from an audio file (transcribed automatically)']
+    ]
+  },
+  {
+    title: 'Audio',
+    tools: [
+      ['enhance_audio', `Clean up a speech recording: remove noise, or fully restore it (${names(ENHANCE_PROVIDERS)})`],
+      ['generate_sound_effect', `Sound effects and ambience from a description (${names(SFX_PROVIDERS)}), several takes at once`]
+    ]
+  },
+  {
+    title: 'Library & models',
+    tools: [
+      ['play_audio', 'Play a past generation out loud in the app'],
+      ['list_history', 'Recent generations with their file paths'],
+      ['list_models / install_model', 'See and download models'],
+      ['get_status', 'Engine state and what each model family can do']
+    ]
+  }
 ]
 
 export default function Agents() {
@@ -119,7 +146,7 @@ export default function Agents() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title="Agents & MCP"
-        subtitle="Let AI assistants like Claude Code, Codex or Cursor speak, design and clone voices with Voiceify, using the standard Model Context Protocol (MCP)."
+        subtitle="Let AI assistants like Claude Code, Codex or Cursor use Voiceify to speak, create voices, transcribe, clean up recordings and make sound effects, using the standard Model Context Protocol (MCP)."
       />
       <div className={cn('scroll flex-1 space-y-8 px-8 pb-10', pad)}>
         <Card className="flex items-center gap-4 p-5">
@@ -174,20 +201,47 @@ export default function Agents() {
         <section>
           <SectionTitle>Tools exposed to agents</SectionTitle>
           <div className="overflow-hidden rounded-2xl border border-line">
-            {TOOLS.map(([name, desc]) => (
-              <div key={name} className="flex items-center gap-4 border-b border-line px-4 py-2.5 last:border-b-0">
-                <code className="w-56 shrink-0 font-mono text-[13px]">{name}</code>
-                <span className="text-[13px] text-ink-3">{desc}</span>
+            {TOOL_GROUPS.map((g) => (
+              <div key={g.title} className="border-b border-line last:border-b-0">
+                <div className="bg-subtle px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-3">{g.title}</div>
+                {g.tools.map(([name, desc]) => (
+                  <div key={name} className="flex items-center gap-4 border-t border-line px-4 py-2.5">
+                    <code className="w-56 shrink-0 font-mono text-[13px]">{name}</code>
+                    <span className="text-[13px] text-ink-3">{desc}</span>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
+          <p className="mt-2 text-xs text-ink-3">Agents can only use the models you have installed; get_status tells them which ones those are.</p>
         </section>
 
         <section>
           <SectionTitle>REST API</SectionTitle>
           <CodeBlock
             title="curl"
-            code={`# Generate speech and save the WAV\ncurl -s ${api?.url}/api/tts?format=wav \\\n  -H 'content-type: application/json' \\\n  -d '{"text":"Hello from my agent!","voice":"Ryan","instructions":"Cheerful"}' -o hello.wav\n\n# List voices / models / history\ncurl -s ${api?.url}/api/voices\ncurl -s ${api?.url}/api/models\ncurl -s ${api?.url}/api/history?limit=10`}
+            code={[
+              `# Generate speech and save the WAV (add "provider" to pick a model family, e.g. "voxcpm2")`,
+              `curl -s ${api?.url}/api/tts?format=wav \\`,
+              `  -H 'content-type: application/json' \\`,
+              `  -d '{"text":"Hello from my agent!","voice":"Ryan","instructions":"Cheerful"}' -o hello.wav`,
+              ``,
+              `# Clean up a recording ("mode": "denoise" removes noise only)`,
+              `curl -s ${api?.url}/api/enhance?format=wav \\`,
+              `  -H 'content-type: application/json' \\`,
+              `  -d '{"audio_path":"/path/to/recording.wav","mode":"enhance"}' -o clean.wav`,
+              ``,
+              `# Make a sound effect`,
+              `curl -s ${api?.url}/api/sound-effects?format=wav \\`,
+              `  -H 'content-type: application/json' \\`,
+              `  -d '{"prompt":"Thunder rolling over distant hills","seconds":6}' -o thunder.wav`,
+              ``,
+              `# List voices, models and history, and see what's installed`,
+              `curl -s ${api?.url}/api/voices`,
+              `curl -s ${api?.url}/api/models`,
+              `curl -s ${api?.url}/api/history?limit=10`,
+              `curl -s ${api?.url}/api/status`
+            ].join('\n')}
           />
         </section>
       </div>

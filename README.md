@@ -178,6 +178,7 @@ Then just ask: *“Read the release notes aloud in the Aiden voice, calm and pro
 | `list_voices` | List built-in, cloned and designed voices |
 | `design_voice` | Invent a voice from a description (Qwen3-TTS or VoxCPM2) and optionally save it |
 | `clone_voice` | Clone a voice from an audio file (auto-transcribed) |
+| `speak_script` | A dialogue or story with several voices in one clip: `[@Name]:` before each part, optional styles like `[@Ryan, whispering]:` |
 | `transcribe_audio` | Speech to text for a local audio file (Qwen3-ASR or Whisper); plain text, SRT/VTT subtitles or JSON with timestamps; Whisper Large can translate into English |
 | `enhance_audio` | Clean up a local speech recording: denoise only, or denoise and restore quality (Resemble Enhance) |
 | `generate_sound_effect` | Make sound effects from a description (Stable Audio 3 Small SFX): length, number of takes, seed, prompt strength and sounds to avoid |
