@@ -6,11 +6,12 @@ import { Badge, Button, Card, Tabs } from '@/components/ui'
 import { InfoTip } from '@/components/InfoTip'
 import { SAVE_MODES } from '@/components/SaveMode'
 import { useApp } from '@/stores/app'
-import { cn, studio } from '@/lib/api'
+import { cn, isWeb, studio } from '@/lib/api'
 import { usePlayerPadding } from '@/lib/useGenerate'
 import { Select } from '@/components/Popover'
 import { useMic, useMicDevices } from '@/stores/mic'
 import { ModelSettings } from './ModelSettings'
+import { PhoneAccess } from './PhoneAccess'
 
 const ENGINE_BADGE = {
   ready: { label: 'Ready', tone: 'green' },
@@ -40,7 +41,7 @@ export default function Settings() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="Settings" />
-      <div className={cn('scroll flex-1 px-8 pb-10', pad)}>
+      <div className={cn('scroll flex-1 px-8 max-md:px-4 pb-10', pad)}>
         <div className="max-w-3xl space-y-4">
           <Row title="Appearance" body="Light, dark, or follow your system setting.">
             <Tabs
@@ -99,17 +100,24 @@ export default function Settings() {
             </div>
           </Row>
 
-          <Row title="Microphone" body="Used whenever you record in Voiceify (cloning, speech to text, speech enhancement).">
-            <MicPicker />
-          </Row>
+          {/* On a phone the microphone and the data folder belong to the Mac, so these are Mac-only. */}
+          {!isWeb && (
+            <Row title="Microphone" body="Used whenever you record in Voiceify (cloning, speech to text, speech enhancement).">
+              <MicPicker />
+            </Row>
+          )}
+
+          {!isWeb && <PhoneAccess />}
 
           <ModelSettings />
 
-          <Row title="Storage" body="Models, your voices and generated audio are stored in Voiceify’s data folder on this computer.">
-            <Button size="sm" variant="outline" icon={<FolderOpen className="size-4" />} onClick={() => studio.openDataFolder()}>
-              Open folder
-            </Button>
-          </Row>
+          {!isWeb && (
+            <Row title="Storage" body="Models, your voices and generated audio are stored in Voiceify’s data folder on this computer.">
+              <Button size="sm" variant="outline" icon={<FolderOpen className="size-4" />} onClick={() => studio.openDataFolder()}>
+                Open folder
+              </Button>
+            </Row>
+          )}
 
           <Card className="p-5">
             <div className="flex items-center gap-3">
@@ -194,7 +202,7 @@ function MicPicker() {
 
 function Row({ title, body, children }: { title: ReactNode; body?: string; children: ReactNode }) {
   return (
-    <Card className="flex items-center gap-6 p-5">
+    <Card className="flex items-center gap-6 p-5 max-md:flex-col max-md:items-start max-md:gap-3">
       <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold">{title}</div>
         {body && <div className="mt-0.5 text-[13px] text-ink-3">{body}</div>}

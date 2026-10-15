@@ -31,7 +31,7 @@ export function Modal({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 max-md:p-3">
           <motion.div
             className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
             initial={{ opacity: 0 }}
@@ -46,7 +46,7 @@ export function Modal({
             exit={{ opacity: 0, scale: 0.97, y: 8, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', stiffness: 420, damping: 34 }}
             style={{ width }}
-            className="relative max-h-[86vh] overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl"
+            className="relative max-h-[86vh] max-w-full overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl"
           >
             <div className="scroll max-h-[86vh]">
               {(title || description) && (

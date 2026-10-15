@@ -31,7 +31,8 @@ const CATEGORIES: { id: Task; label: string }[] = [
 ]
 const categoryOf = (p: Provider | undefined): Task => p?.task ?? 'tts'
 
-const GRID = 'grid grid-cols-[minmax(220px,1.6fr)_76px_92px_92px_128px_292px] items-center gap-4'
+// On phones a version is a small card: name and size on top, its actions underneath.
+const GRID = 'grid grid-cols-[minmax(220px,1.6fr)_76px_92px_92px_128px_292px] items-center gap-4 max-md:grid-cols-[1fr_auto] max-md:gap-x-3 max-md:gap-y-2'
 
 export default function Models() {
   const models = useApp((s) => s.models)
@@ -99,7 +100,7 @@ export default function Models() {
         title="Models"
         subtitle="Voiceify runs open-source AI models on your computer. Each task needs its own model — install the ones you use."
       />
-      <div className={cn('scroll flex-1 space-y-8 px-8 pb-10', pad)}>
+      <div className={cn('scroll flex-1 space-y-8 px-8 max-md:px-4 pb-10', pad)}>
         {(engine.state === 'missing' || engine.state === 'error') && <ModelGate cap="preset-voices" />}
         {engine.state === 'installing' && (
           <Card className="p-5">
@@ -119,11 +120,11 @@ export default function Models() {
               <Stat icon={<HardDrive className="size-4" />} label="Free disk" value={`${system.freeDiskGB} GB`} />
               <Stat icon={<Download className="size-4" />} label="Models on disk" value={formatBytes(installedBytes)} />
             </div>
-            <div className="flex items-center gap-4 bg-subtle/70 p-5">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-ink text-canvas">
+            <div className="flex items-center gap-4 bg-subtle/70 p-5 max-md:flex-wrap">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-ink text-canvas max-md:hidden">
                 <Sparkles className="size-5" />
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 max-md:basis-full">
                 <div className="text-sm font-semibold">Recommended for this computer</div>
                 {recommended.length ? (
                   <>
@@ -145,6 +146,7 @@ export default function Models() {
               </div>
               {missingRec.length > 0 ? (
                 <Button
+                  className="max-md:w-full"
                   icon={<Download className="size-4" />}
                   onClick={() => missingRec.forEach((m) => studio.installModel(m.id).catch((e) => toast.error('Download failed', errorMessage(e))))}
                 >
@@ -172,9 +174,9 @@ export default function Models() {
         />
 
         {/* The filters stay pinned while a long list of versions scrolls by. */}
-        <div className="sticky top-0 z-20 -mx-8 space-y-4 border-b border-line bg-canvas/90 px-8 pb-4 pt-4 backdrop-blur-xl">
+        <div className="sticky top-0 z-20 -mx-8 max-md:-mx-4 space-y-4 border-b border-line bg-canvas/90 px-8 max-md:px-4 pb-4 pt-4 backdrop-blur-xl">
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between max-md:flex-wrap max-md:gap-2">
           <Tabs
             id="model-filter"
             value={filter}
@@ -228,7 +230,7 @@ export default function Models() {
                 />
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-line-strong p-8 text-center text-sm text-ink-3">
+              <div className="rounded-2xl border border-dashed border-line-strong p-8 max-md:p-4 text-center text-sm text-ink-3">
                 {filter === 'installed'
                   ? `You haven’t installed any ${selected?.provider?.name ?? 'custom'} models yet.`
                   : 'Nothing recommended here for this computer.'}{' '}
@@ -273,7 +275,9 @@ function FamilyPicker({
           Model family
           <InfoTip>Each family is a different open-source model with its own voices, strengths and sizes. Pick one to see its versions.</InfoTip>
         </div>
-        <Tabs id="model-category" value={category} onChange={onCategory} tabs={categories} />
+        <div className="max-md:-mx-4 max-md:w-[calc(100%+2rem)] max-md:overflow-x-auto max-md:px-4">
+          <Tabs id="model-category" value={category} onChange={onCategory} tabs={categories} className="max-md:w-max" />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
         {families.map((p) => {
@@ -327,8 +331,10 @@ function FamilyHeader({ provider: p }: { provider: Provider }) {
   const installed = models.filter((m) => m.provider === p.id && isInstalled(m)).length
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-start gap-4 p-5">
-        <VoiceAvatar colors={p.colors} size={48} />
+      <div className="flex items-start gap-4 p-5 max-md:p-4">
+        <span className="max-md:hidden">
+          <VoiceAvatar colors={p.colors} size={48} />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h2 className="text-xl font-semibold tracking-tight">{p.name}</h2>
@@ -348,7 +354,7 @@ function FamilyHeader({ provider: p }: { provider: Provider }) {
           )}
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-px border-t border-line bg-line text-[12.5px]">
+      <div className="grid grid-cols-2 gap-px border-t border-line bg-line text-[12.5px] max-md:grid-cols-1">
         <div className="bg-surface px-5 py-3">
           <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-3">Good at</div>
           <ul className="space-y-0.5 text-ink-2">
@@ -382,7 +388,7 @@ function RoleSection({ roleId, rows, showRole }: { roleId: string; rows: ModelIn
         </div>
       )}
       <div className="overflow-hidden rounded-2xl border border-line">
-        <div className={cn(GRID, 'border-b border-line bg-subtle px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-ink-3')}>
+        <div className={cn(GRID, 'border-b border-line bg-subtle px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-ink-3 max-md:hidden')}>
           <span className="flex items-center gap-1">
             Version
             <InfoTip width={320}>
@@ -468,12 +474,12 @@ function ModelRow({ model: m }: { model: ModelInfo }) {
         </div>
       </div>
       <span className="text-sm tabular-nums text-ink-2">{formatBytes(m.sizeBytes)}</span>
-      {helper ? <span /> : <Meter value={m.quality} />}
-      {helper ? <span /> : <Meter value={m.speed} />}
-      <span className="text-xs text-ink-3">
+      <span className="max-md:hidden">{!helper && <Meter value={m.quality} />}</span>
+      <span className="max-md:hidden">{!helper && <Meter value={m.speed} />}</span>
+      <span className="text-xs text-ink-3 max-md:hidden">
         {helper ? '' : m.localSpeed ? `${m.localSpeed.speedup.toFixed(1)}× real time` : s.status === 'installed' ? 'Generate to measure' : '—'}
       </span>
-      <div className="flex items-center justify-end gap-1.5">
+      <div className="flex items-center justify-end gap-1.5 max-md:col-span-2 max-md:justify-start">
         {s.status === 'not-installed' && (
           <Button
             size="sm"

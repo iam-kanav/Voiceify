@@ -148,7 +148,7 @@ export default function Agents() {
         title="Agents & MCP"
         subtitle="Let AI assistants like Claude Code, Codex or Cursor use Voiceify to speak, create voices, transcribe, clean up recordings and make sound effects, using the standard Model Context Protocol (MCP)."
       />
-      <div className={cn('scroll flex-1 space-y-8 px-8 pb-10', pad)}>
+      <div className={cn('scroll flex-1 space-y-8 px-8 max-md:px-4 pb-10', pad)}>
         <Card className="flex items-center gap-4 p-5">
           <span className="relative flex size-10 items-center justify-center rounded-xl bg-muted">
             <Plug className="size-5" />

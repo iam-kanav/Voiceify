@@ -10,6 +10,7 @@ import { history } from './library/history'
 import { transcripts } from './library/transcripts'
 import { initFingerprints } from './services/fingerprints'
 import { startApiServer, stopApiServer } from './api/server'
+import { startRemoteServer, stopRemoteServer } from './remote/server'
 import { getSettings } from './settings'
 import { JsonStore } from './store'
 
@@ -139,6 +140,7 @@ if (!gotLock) {
     registerIpc()
     createWindow()
     await startApiServer()
+    await startRemoteServer()
     initFingerprints()
     engine.boot()
     models.resumePending()
@@ -161,6 +163,6 @@ if (!gotLock) {
     history.dropUnsaved()
     transcripts.dropUnsaved()
     JsonStore.flushAll()
-    Promise.allSettled([engine.stop(), stopApiServer()]).finally(() => app.exit(0))
+    Promise.allSettled([engine.stop(), stopApiServer(), stopRemoteServer()]).finally(() => app.exit(0))
   })
 }

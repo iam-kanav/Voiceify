@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { ApiServerInfo, AppSettings, EngineStatus, HistoryItem, ModelInfo, SystemInfo, Transcript, Voice } from '@shared/types'
-import { studio } from '@/lib/api'
+import { isWeb, studio } from '@/lib/api'
 
 export type Route = { id: string; params?: Record<string, string> }
 
@@ -65,7 +65,8 @@ export const useApp = create<AppState>((set, get) => ({
       set({ initError: e instanceof Error ? e.message : String(e) })
       return
     }
-    const [system, settings, engine, models, voices, history, api, transcripts] = loaded
+    const [system, mac, engine, models, voices, history, api, transcripts] = loaded
+    const settings = withLocalTheme(mac)
     set({ system, settings, engine, models, voices, history, api, transcripts, ready: true, initError: null })
     applyTheme(settings.theme)
 
@@ -93,11 +94,23 @@ export const useApp = create<AppState>((set, get) => ({
   refreshHistory: async () => set({ history: await studio.listHistory() }),
   refreshTranscripts: async () => set({ transcripts: await studio.listTranscripts() }),
   updateSettings: async (patch) => {
-    const settings = await studio.updateSettings(patch)
+    // A phone keeps its own theme rather than changing the Mac's.
+    if (isWeb && patch.theme) {
+      localStorage.setItem('theme', patch.theme)
+      const { theme, ...rest } = patch
+      applyTheme(theme)
+      patch = rest
+    }
+    const settings = withLocalTheme(await studio.updateSettings(patch))
     set({ settings })
     if (patch.theme) applyTheme(settings.theme)
   }
 }))
+
+function withLocalTheme(s: AppSettings): AppSettings {
+  const local = isWeb ? (localStorage.getItem('theme') as AppSettings['theme'] | null) : null
+  return local ? { ...s, theme: local } : isWeb ? { ...s, theme: 'system' } : s
+}
 
 export function applyTheme(theme: AppSettings['theme']) {
   const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)

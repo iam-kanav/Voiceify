@@ -4,6 +4,7 @@ import { DEFAULT_ROUTE, FEATURE_BY_ID } from '@/app/registry'
 import { useApp } from '@/stores/app'
 import { playHistoryItem } from '@/stores/player'
 import { studio } from '@/lib/api'
+import { MobileNav } from '@/components/MobileNav'
 import { Sidebar } from '@/components/Sidebar'
 import { PlayerBar } from '@/components/PlayerBar'
 import { Toaster } from '@/components/Toast'
@@ -57,10 +58,10 @@ export function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="flex h-full">
+      <div className="flex h-full max-md:flex-col">
         <Sidebar />
-        <main className="relative flex min-w-0 flex-1 flex-col">
-          <div className="drag absolute inset-x-0 top-0 z-20 h-[52px]" />
+        <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="drag absolute inset-x-0 top-0 z-20 h-[52px] max-md:hidden" />
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={route.id}
@@ -83,6 +84,7 @@ export function App() {
           </AnimatePresence>
           <PlayerBar />
         </main>
+        <MobileNav />
       </div>
       <AnimatePresence>{!onboarded && <Onboarding />}</AnimatePresence>
       <Toaster />

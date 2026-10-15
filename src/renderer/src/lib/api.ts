@@ -1,8 +1,14 @@
 import { MEDIA_SCHEME } from '@shared/ipc'
+// In a phone's browser this provides window.studio; importing it here guarantees it runs first.
+import './web-bridge'
 
 export const studio = window.studio
 
+/** Running in a phone's browser (phone access) rather than the Mac app. */
+export const isWeb = studio.platform === 'web'
+
 export function mediaUrl(absPath: string) {
+  if (isWeb) return `/media?p=${encodeURIComponent(absPath)}`
   return `${MEDIA_SCHEME}://local${absPath.split('/').map(encodeURIComponent).join('/')}`
 }
 

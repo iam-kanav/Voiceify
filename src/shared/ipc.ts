@@ -1,6 +1,7 @@
 import type {
   ApiServerInfo,
   AppSettings,
+  RemoteInfo,
   DownloadProgressEvent,
   EnhanceRequest,
   EngineStatus,
@@ -77,6 +78,9 @@ export interface StudioInvoke {
   revealInFinder(path: string): void
 
   getApiServerInfo(): ApiServerInfo
+  getRemoteInfo(): RemoteInfo
+  /** Makes a new pairing code, so phones paired before have to scan again. */
+  resetRemotePairing(): RemoteInfo
   openExternal(url: string): void
   openDataFolder(): void
 }
@@ -95,6 +99,7 @@ export interface StudioEvents {
   /** Asks the renderer to play a history item (e.g. an agent called text_to_speech with play=true). */
   playHistory: { id: string }
   apiServer: ApiServerInfo
+  remoteServer: RemoteInfo
 }
 
 export type StudioApi = {
@@ -103,6 +108,7 @@ export type StudioApi = {
   ) => Promise<Awaited<ReturnType<StudioInvoke[K]>>>
 } & {
   on<E extends keyof StudioEvents>(event: E, cb: (payload: StudioEvents[E]) => void): () => void
+  /** process.platform in the Mac app; "web" when the app runs in a phone's browser. */
   platform: string
 }
 
@@ -143,6 +149,8 @@ export const INVOKE_METHODS: (keyof StudioInvoke)[] = [
   'exportTranscript',
   'revealInFinder',
   'getApiServerInfo',
+  'getRemoteInfo',
+  'resetRemotePairing',
   'openExternal',
   'openDataFolder'
 ]

@@ -23,6 +23,7 @@ import { cn, dayLabel, formatTime, studio, uid } from '@/lib/api'
 import { decodeToMono, encodeWav } from '@/lib/wav'
 import { isInstalled, resolveModel } from '@/lib/models'
 import { usePlayerPadding } from '@/lib/useGenerate'
+import { useRevealOnPhone } from '@/lib/useReveal'
 import { useRaf } from '@/lib/useRaf'
 
 /** Speech recognition models expect 16 kHz mono. */
@@ -63,6 +64,7 @@ export default function SpeechToText() {
   const { file, busy, selectedId } = useSession()
   const [decoding, setDecoding] = useState(false)
   const pad = usePlayerPadding()
+  const results = useRevealOnPhone<HTMLElement>(busy?.startedAt)
 
   const provider = PROVIDER_BY_ID.get(providerId) ?? ASR_PROVIDERS[0]
   const canTranslate = provider.id === 'whisper'
@@ -119,8 +121,8 @@ export default function SpeechToText() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="Speech to Text" subtitle="Transcribe any audio or video file, privately on your computer." />
-      <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
-        <section className="scroll w-[min(440px,42%)] shrink-0 space-y-6 border-r border-line p-6">
+      <div className={cn('flex min-h-0 flex-1 border-t border-line max-md:flex-col max-md:overflow-y-auto', pad)}>
+        <section className="scroll w-[min(440px,42%)] shrink-0 space-y-6 border-r border-line p-6 max-md:w-full max-md:overflow-visible max-md:border-r-0 max-md:p-4">
           <ProviderCards value={provider.id} onChange={(id) => useStt.setState({ provider: id })} />
 
           <ModelChooser
@@ -197,7 +199,7 @@ export default function SpeechToText() {
           {transcripts.length > 0 && <Recent transcripts={transcripts} selectedId={selected?.id} />}
         </section>
 
-        <section className="flex min-w-0 flex-1 flex-col">
+        <section ref={results} className="flex min-w-0 flex-1 flex-col max-md:min-h-[55dvh] max-md:flex-none max-md:overflow-visible max-md:border-t max-md:border-line">
           {busy ? (
             <Working busy={busy} />
           ) : selected ? (
@@ -372,7 +374,7 @@ function TranscriptView({ t, models }: { t: Transcript; models: ModelInfo[] }) {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-start gap-3 border-b border-line px-8 py-4">
+      <div className="flex items-start gap-3 border-b border-line px-8 max-md:px-4 py-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[15px] font-semibold">{t.name}</span>
@@ -434,7 +436,7 @@ function TranscriptView({ t, models }: { t: Transcript; models: ModelInfo[] }) {
       </div>
 
       {t.segments.length > 0 && (
-        <div className="flex items-center justify-between px-8 pt-4">
+        <div className="flex items-center justify-between px-8 max-md:px-4 pt-4">
           <Tabs
             id="stt-view"
             value={view}
@@ -455,7 +457,7 @@ function TranscriptView({ t, models }: { t: Transcript; models: ModelInfo[] }) {
           value={text}
           onChange={(e) => edit(e.target.value)}
           placeholder="No speech was found in this audio."
-          className="scroll flex-1 resize-none bg-transparent px-8 pb-6 pt-4 text-[16px] leading-[1.75] text-ink outline-none placeholder:text-ink-3"
+          className="scroll flex-1 resize-none bg-transparent px-8 max-md:px-4 pb-6 pt-4 text-[16px] leading-[1.75] text-ink outline-none placeholder:text-ink-3"
         />
       ) : (
         <div className="scroll flex-1 px-6 pb-6 pt-3">

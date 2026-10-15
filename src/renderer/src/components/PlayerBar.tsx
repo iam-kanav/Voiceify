@@ -50,8 +50,9 @@ export function PlayerBar() {
           transition={{ type: 'spring', stiffness: 380, damping: 36 }}
           className="absolute inset-x-0 bottom-0 z-30 border-t border-line bg-surface/92 backdrop-blur-xl"
         >
-          <div className="flex h-[72px] items-center gap-4 px-5">
-            <div className="flex w-[260px] min-w-0 items-center gap-3">
+          {/* On phones: title, play and actions on one row, the waveform underneath. */}
+          <div className="flex h-[72px] items-center gap-4 px-5 max-md:h-auto max-md:flex-wrap max-md:gap-x-2 max-md:gap-y-1.5 max-md:px-3 max-md:py-2">
+            <div className="flex w-[260px] min-w-0 items-center gap-3 max-md:w-auto max-md:flex-1">
               <VoiceAvatar colors={clip.colors ?? ['#a1a1aa', '#52525b']} size={36} active={status === 'streaming' || status === 'playing'} />
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{clip.title}</div>
@@ -67,7 +68,7 @@ export function PlayerBar() {
               }}
               disabled={status === 'loading'}
               title={status === 'streaming' ? 'Stop generating' : status === 'playing' ? 'Pause' : 'Play'}
-              className="group/play flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink transition-transform active:scale-90 disabled:opacity-90"
+              className="group/play flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink transition-transform active:scale-90 disabled:opacity-90 max-md:order-2"
             >
               {status === 'loading' ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -83,10 +84,11 @@ export function PlayerBar() {
               )}
             </button>
 
-            <span ref={timeRef} className="w-10 text-right text-xs tabular-nums text-ink-3">
+            <div className="hidden basis-full max-md:order-4 max-md:block" />
+            <span ref={timeRef} className="w-10 text-right text-xs tabular-nums text-ink-3 max-md:order-5 max-md:w-8">
               0:00
             </span>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 max-md:order-6">
               {status === 'streaming' ? (
                 <div className="flex h-8 items-center gap-2 text-xs text-ink-3">
                   <motion.div
@@ -104,11 +106,11 @@ export function PlayerBar() {
                 />
               )}
             </div>
-            <span ref={durRef} className="w-10 text-xs tabular-nums text-ink-3">
+            <span ref={durRef} className="w-10 text-xs tabular-nums text-ink-3 max-md:order-7 max-md:w-8">
               0:00
             </span>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 max-md:order-3">
               {clip.item && (
                 <IconButton
                   label="Replay"

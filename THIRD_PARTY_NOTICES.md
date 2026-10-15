@@ -56,6 +56,7 @@ Kyutai asks that Pocket TTS not be used for voice impersonation or cloning witho
 | [Motion](https://motion.dev/) | MIT |
 | [Tailwind CSS](https://tailwindcss.com/) | MIT |
 | [Lucide](https://lucide.dev/) icons | ISC |
+| [node-qrcode](https://github.com/soldair/node-qrcode) (phone pairing code) | MIT |
 | [Inter](https://rsms.me/inter/) typeface (via Fontsource) | SIL Open Font License 1.1 |
 
 Build tooling ([Vite](https://vite.dev/), [electron-vite](https://electron-vite.org/), [electron-builder](https://www.electron.build/): MIT; [TypeScript](https://www.typescriptlang.org/): Apache-2.0) is used only at build time.

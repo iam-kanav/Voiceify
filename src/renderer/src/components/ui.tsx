@@ -144,7 +144,7 @@ export function Tabs<T extends string>({
           key={t.id}
           onClick={() => onChange(t.id)}
           className={cn(
-            'relative h-8 rounded-full px-3 text-[13px] font-medium transition-colors',
+            'relative h-8 shrink-0 whitespace-nowrap rounded-full px-3 text-[13px] font-medium transition-colors',
             value === t.id ? 'text-ink' : 'text-ink-3 hover:text-ink-2'
           )}
         >
@@ -174,13 +174,13 @@ export function UnderlineTabs<T extends string>({
   id: string
 }) {
   return (
-    <div className="flex items-center gap-5 border-b border-line">
+    <div className="flex items-center gap-5 border-b border-line max-md:w-max">
       {tabs.map((t) => (
         <button
           key={t.id}
           onClick={() => onChange(t.id)}
           className={cn(
-            'relative pb-2.5 pt-1 text-sm font-medium transition-colors',
+            'relative shrink-0 whitespace-nowrap pb-2.5 pt-1 text-sm font-medium transition-colors',
             value === t.id ? 'text-ink' : 'text-ink-3 hover:text-ink-2'
           )}
         >

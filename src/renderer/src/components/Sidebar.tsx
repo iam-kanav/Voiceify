@@ -2,7 +2,7 @@ import { motion } from 'motion/react'
 import { DEFAULT_ROUTE, FEATURES, SECTION_LABELS, type Section } from '@/app/registry'
 import { LogoMark } from './Logo'
 import { useApp } from '@/stores/app'
-import { cn } from '@/lib/api'
+import { cn, isWeb } from '@/lib/api'
 
 const ORDER: Section[] = ['playground', 'library', 'soon']
 
@@ -41,7 +41,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-[244px] shrink-0 flex-col border-r border-line bg-canvas">
+    <aside className="flex h-full w-[244px] shrink-0 flex-col border-r border-line bg-canvas max-md:hidden">
       <div className="drag h-[52px] shrink-0" />
       <div className="px-4 pb-4">
         <button onClick={() => navigate(DEFAULT_ROUTE)} className="flex items-center gap-2.5">
@@ -51,7 +51,7 @@ export function Sidebar() {
       </div>
       <nav className="scroll flex-1 space-y-5 px-2.5 pb-4">
         {ORDER.map((section) => {
-          const items = FEATURES.filter((f) => f.section === section && !f.hidden)
+          const items = FEATURES.filter((f) => f.section === section && !f.hidden && !(isWeb && f.desktopOnly))
           if (!items.length) return null
           return (
             <div key={section} className="space-y-0.5">
@@ -64,7 +64,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="space-y-0.5 border-t border-line px-2.5 py-2.5">
-        {FEATURES.filter((f) => f.section === 'bottom').map((f) => item(f.id))}
+        {FEATURES.filter((f) => f.section === 'bottom' && !(isWeb && f.desktopOnly)).map((f) => item(f.id))}
       </div>
     </aside>
   )

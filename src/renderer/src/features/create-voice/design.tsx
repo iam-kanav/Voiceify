@@ -21,6 +21,7 @@ import { canSpeakOwnVoices, isInstalled, recommendedFor } from '@/lib/models'
 import { InfoTip } from '@/components/InfoTip'
 import { PortabilityNote } from './PortabilityNote'
 import { usePlayerPadding } from '@/lib/useGenerate'
+import { useRevealOnPhone } from '@/lib/useReveal'
 
 const DEFAULT_PREVIEW =
   "Every voice tells a story. Some whisper secrets, others command the room — and this one was designed just for you, from nothing but a few words."
@@ -92,6 +93,7 @@ export function DesignPanel() {
     DESIGNERS[0]
   const hasModel = canDesign(designer.id)
   const hasTemperature = designer.params.some((p) => p.key === 'temperature')
+  const results = useRevealOnPhone<HTMLElement>(running)
   const [saving, setSaving] = useState<Preview | null>(null)
   const pad = usePlayerPadding()
 
@@ -145,8 +147,8 @@ export function DesignPanel() {
 
   return (
     <>
-      <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
-        <section className="scroll w-[min(560px,48%)] shrink-0 space-y-6 border-r border-line p-8">
+      <div className={cn('flex min-h-0 flex-1 border-t border-line max-md:flex-col max-md:overflow-y-auto', pad)}>
+        <section className="scroll w-[min(560px,48%)] shrink-0 space-y-6 border-r border-line p-8 max-md:w-full max-md:overflow-visible max-md:border-r-0 max-md:p-4">
           {DESIGNERS.length > 1 && (
             <Field
               label={
@@ -267,7 +269,7 @@ export function DesignPanel() {
           </div>
         </section>
 
-        <section className="scroll flex-1 p-8">
+        <section ref={results} className="scroll flex-1 p-8 max-md:p-4 max-md:flex-none max-md:overflow-visible max-md:border-t max-md:border-line">
           {!previews.length ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <div className="relative mb-6">

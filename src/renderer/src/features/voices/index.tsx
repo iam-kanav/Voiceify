@@ -59,8 +59,10 @@ export default function Voices() {
           </>
         }
       />
-      <div className={cn('scroll flex-1 px-8', pad)}>
-        <div className="flex items-end justify-between gap-4">
+      <div className={cn('scroll flex-1 px-8 max-md:px-4', pad)}>
+        {/* On phones: search on top, then the tabs, scrolling sideways if they don't fit. */}
+        <div className="flex items-end justify-between gap-4 max-md:flex-col-reverse max-md:items-stretch max-md:gap-2">
+          <div className="max-md:-mx-4 max-md:overflow-x-auto max-md:px-4">
           <UnderlineTabs
             id="voices"
             value={tab}
@@ -71,7 +73,8 @@ export default function Voices() {
               ...TTS_PROVIDERS.filter((p) => p.voices.length).map((p) => ({ id: p.id, label: p.name }))
             ]}
           />
-          <div className="relative mb-2 w-64">
+          </div>
+          <div className="relative mb-2 w-64 max-md:mb-0 max-md:w-full">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search voices" className="h-9 pl-9" />
           </div>

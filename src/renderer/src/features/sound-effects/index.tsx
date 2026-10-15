@@ -36,9 +36,10 @@ import { useApp } from '@/stores/app'
 import { sfxValues, useSfx } from '@/stores/sfx'
 import { playHistoryItem, usePlayer } from '@/stores/player'
 import { usePlayerPadding } from '@/lib/useGenerate'
+import { useRevealOnPhone } from '@/lib/useReveal'
 import { isInstalled } from '@/lib/models'
 import { useFilePeaks } from '@/lib/useFilePeaks'
-import { cn, dayLabel, formatTime, studio, uid } from '@/lib/api'
+import { cn, isWeb, dayLabel, formatTime, studio, uid } from '@/lib/api'
 
 const PROVIDER = SFX_PROVIDERS[0]
 const SPEC = Object.fromEntries(PROVIDER.params.map((p) => [p.key, p]))
@@ -70,6 +71,7 @@ export default function SoundEffects() {
   const v = sfxValues(s, PROVIDER.id)
   const overridden = s.seconds !== undefined || s.steps !== undefined || s.cfg !== undefined
   const { busy, latest } = useSession()
+  const results = useRevealOnPhone<HTMLElement>(busy?.jobId)
   const models = useApp((st) => st.models)
   const engine = useApp((st) => st.engine)
   const history = useApp((st) => st.history)
@@ -161,8 +163,8 @@ export default function SoundEffects() {
           </button>
         }
       />
-      <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
-        <section className="scroll w-[min(440px,42%)] shrink-0 space-y-6 border-r border-line p-6">
+      <div className={cn('flex min-h-0 flex-1 border-t border-line max-md:flex-col max-md:overflow-y-auto', pad)}>
+        <section className="scroll w-[min(440px,42%)] shrink-0 space-y-6 border-r border-line p-6 max-md:w-full max-md:overflow-visible max-md:border-r-0 max-md:p-4">
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-[13px] font-medium">
               Describe the sound
@@ -365,10 +367,10 @@ export default function SoundEffects() {
           </p>
         </section>
 
-        <section className="scroll flex min-w-0 flex-1 flex-col">
+        <section ref={results} className="scroll flex min-w-0 flex-1 flex-col max-md:min-h-[55dvh] max-md:flex-none max-md:overflow-visible max-md:border-t max-md:border-line">
           {busy && <Working busy={busy} />}
           {!busy && latestItems.length > 0 && (
-            <div className="border-b border-line px-8 py-6">
+            <div className="border-b border-line px-8 max-md:px-4 py-6">
               <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-3">Just made</div>
               <div className="mb-4 text-[15px] font-semibold">{latestItems[0].text}</div>
               <div className="grid gap-3">
@@ -432,9 +434,11 @@ function TakeActions({ item, onReuse }: { item: HistoryItem; onReuse: () => void
       <IconButton label="Use these settings again" onClick={onReuse}>
         <Dices className="size-4" />
       </IconButton>
-      <IconButton label="Show in Finder" onClick={() => studio.revealInFinder(item.audioPath)}>
-        <FolderOpen className="size-4" />
-      </IconButton>
+      {!isWeb && (
+        <IconButton label="Show in Finder" onClick={() => studio.revealInFinder(item.audioPath)}>
+          <FolderOpen className="size-4" />
+        </IconButton>
+      )}
       <IconButton
         label="Export as WAV…"
         onClick={async () => {

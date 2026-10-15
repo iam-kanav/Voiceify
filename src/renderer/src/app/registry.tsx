@@ -36,6 +36,10 @@ export interface Feature {
   component: LazyExoticComponent<ComponentType>
   /** Hide from the sidebar (still routable). */
   hidden?: boolean
+  /** Only makes sense on the Mac itself, so it's left out when using Voiceify from a phone. */
+  desktopOnly?: boolean
+  /** Short name for the phone's tab bar. */
+  short?: string
 }
 
 // Placeholder page for features listed with `status: 'soon'`.
@@ -45,6 +49,7 @@ export const FEATURES: Feature[] = [
   {
     id: 'tts',
     label: 'Text to Speech',
+    short: 'Speech',
     icon: AudioLines,
     section: 'playground',
     status: 'ready',
@@ -54,6 +59,7 @@ export const FEATURES: Feature[] = [
   {
     id: 'create-voice',
     label: 'Create Voice',
+    short: 'Create',
     icon: Wand2,
     section: 'playground',
     status: 'ready',
@@ -72,6 +78,7 @@ export const FEATURES: Feature[] = [
   {
     id: 'speech-to-text',
     label: 'Speech to Text',
+    short: 'Transcribe',
     icon: Speech,
     section: 'playground',
     status: 'ready',
@@ -117,6 +124,7 @@ export const FEATURES: Feature[] = [
   {
     id: 'agents',
     label: 'Agents & MCP',
+    desktopOnly: true,
     icon: Bot,
     section: 'bottom',
     status: 'ready',

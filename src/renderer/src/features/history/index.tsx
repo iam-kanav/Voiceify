@@ -13,7 +13,7 @@ import { useTts } from '@/stores/tts'
 import { PROVIDER_BY_ID } from '@shared/providers'
 import { useSfx } from '@/stores/sfx'
 import { playHistoryItem, usePlayer } from '@/stores/player'
-import { cn, dayLabel, formatTime, studio } from '@/lib/api'
+import { cn, isWeb, dayLabel, formatTime, studio } from '@/lib/api'
 import { usePlayerPadding } from '@/lib/useGenerate'
 
 export default function History() {
@@ -88,7 +88,7 @@ export default function History() {
           )
         }
       />
-      <div className={cn('scroll flex-1 px-8', pad)}>
+      <div className={cn('scroll flex-1 px-8 max-md:px-4', pad)}>
         {history.length === 0 ? (
           <EmptyState
             icon={<HistoryIcon className="size-5" />}
@@ -193,9 +193,11 @@ function Row({ item, colors, modelName, onReuse }: { item: HistoryItem; colors?:
         <IconButton label={item.mode === 'sfx' ? 'Open in Sound Effects' : item.mode === 'enhance' ? 'Open Speech Enhancement' : 'Open in Text to Speech'} onClick={onReuse}>
           <Repeat2 className="size-4" />
         </IconButton>
-        <IconButton label="Show in Finder" onClick={() => studio.revealInFinder(item.audioPath)}>
-          <FolderOpen className="size-4" />
-        </IconButton>
+        {!isWeb && (
+          <IconButton label="Show in Finder" onClick={() => studio.revealInFinder(item.audioPath)}>
+            <FolderOpen className="size-4" />
+          </IconButton>
+        )}
         <IconButton
           label="Export as WAV…"
           onClick={async () => {

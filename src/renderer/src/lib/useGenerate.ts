@@ -70,5 +70,6 @@ export function useGenerate() {
 
 export function usePlayerPadding() {
   const visible = usePlayer((s) => s.clip !== null && s.status !== 'idle')
-  return visible ? 'pb-[72px]' : ''
+  // The player is taller on phones (its waveform gets its own row).
+  return visible ? 'pb-[72px] max-md:pb-[108px]' : ''
 }

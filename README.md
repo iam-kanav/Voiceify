@@ -34,6 +34,7 @@ Text to speech, voice design and voice cloning with multiple open-source AI mode
 - **Sound effects.** Describe a sound and get up to four takes of 44.1 kHz stereo foley, ambience or UI sounds in a couple of seconds, with [Stable Audio 3 Small SFX](https://huggingface.co/stabilityai/stable-audio-3-small-sfx) running on Stability AI's official MLX port. Powered by Stability AI.
 - **Voices travel between models.** Voices you clone or design are stored as a short reference recording, so any model that supports your own voices can speak them. Design a voice with Qwen3-TTS or VoxCPM2, then use it with any of them. Each saved voice also gets a **voice fingerprint**, so Qwen3-TTS can speak it like a built-in voice and follow style instructions with it.
 - **Pick your trade-off.** Install the model sizes and precisions that suit your machine. Voiceify recommends a set based on your memory and shows the speed it actually measures on your computer.
+- **Use it from your phone.** Turn on *Settings → Use on your phone*, scan the QR code, and the whole app opens in your phone's browser over Wi-Fi, laid out for a small screen, while your Mac does the work.
 - **Built for agents.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Codex, Cursor and other assistants speak, design and clone voices.
 - **Made to grow.** Model providers and features plug into registries, so new model families and tools (sound effects, …) slot in cleanly.
 
@@ -260,6 +261,7 @@ docs/images/       README screenshots
 - [x] Script mode: several voices in one text
 - [x] Speech enhancement (Resemble Enhance)
 - [x] VoxCPM2: studio-quality design and cloning in 30 languages
+- [x] Use from your phone on the same Wi-Fi, with a phone layout
 - [x] OmniVoice: your voices in 600+ languages, with exact-length control
 - [ ] More model providers (multilingual Pocket TTS, …)
 - [ ] Windows and Linux support (needs a non-MLX inference backend)
@@ -273,6 +275,12 @@ Have an idea? [Open a feature request](https://github.com/iam-kanav/Voiceify/iss
 <summary><b>Does it work offline?</b></summary>
 
 Yes. You need internet once to download the engine and models. After that, generation, cloning and design all run locally.
+</details>
+
+<details>
+<summary><b>Can I use it from my phone?</b></summary>
+
+Yes, on the same Wi-Fi. Turn on **Settings → Use on your phone** on the Mac and scan the QR code with your phone's camera; Voiceify opens in the phone's browser (add it to your Home Screen to open it like an app). Everything runs on the Mac. Only phones that scanned the code can connect, and switching it off or pressing **Unpair all phones** cuts them off. Browsers only allow the microphone on secure (HTTPS) connections, so to clone or transcribe from the phone, record in Voice Memos and upload the file. The first time, macOS may ask whether Voiceify can accept incoming connections: choose Allow.
 </details>
 
 <details>

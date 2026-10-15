@@ -42,7 +42,7 @@ const ICONS = {
 export function Toaster() {
   const { toasts, dismiss } = useToasts()
   return (
-    <div className="pointer-events-none fixed right-5 top-5 z-[60] flex w-[360px] flex-col gap-2">
+    <div className="pointer-events-none fixed right-5 top-5 z-[60] flex w-[360px] flex-col gap-2 max-md:inset-x-3 max-md:top-[calc(env(safe-area-inset-top)+8px)] max-md:w-auto">
       <AnimatePresence initial={false}>
         {toasts.map((t) => (
           <motion.div

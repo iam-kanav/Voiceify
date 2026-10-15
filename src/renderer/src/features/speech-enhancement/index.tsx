@@ -17,11 +17,12 @@ import { useApp } from '@/stores/app'
 import { enhanceValues, useEnhance } from '@/stores/enhance'
 import { playHistoryItem, usePlayer } from '@/stores/player'
 import { usePlayerPadding } from '@/lib/useGenerate'
+import { useRevealOnPhone } from '@/lib/useReveal'
 import { isInstalled } from '@/lib/models'
 import { useFilePeaks } from '@/lib/useFilePeaks'
 import { decodeToMono, encodeWav, peaks } from '@/lib/wav'
 import { clock } from '@shared/subtitles'
-import { cn, dayLabel, formatTime, studio, uid } from '@/lib/api'
+import { cn, isWeb, dayLabel, formatTime, studio, uid } from '@/lib/api'
 
 const PROVIDER = ENHANCE_PROVIDERS[0]
 const COLORS = PROVIDER.colors
@@ -49,6 +50,7 @@ const useSession = create<{
 export default function SpeechEnhancement() {
   const s = useEnhance()
   const { file, busy, latestId, originals } = useSession()
+  const results = useRevealOnPhone<HTMLElement>(busy?.jobId)
   useApp((st) => st.settings?.providerDefaults?.[PROVIDER.id]) // re-render when Settings defaults change
   const models = useApp((st) => st.models)
   const engine = useApp((st) => st.engine)
@@ -114,8 +116,8 @@ export default function SpeechEnhancement() {
           </button>
         }
       />
-      <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
-        <section className="scroll w-[min(440px,42%)] shrink-0 space-y-6 border-r border-line p-6">
+      <div className={cn('flex min-h-0 flex-1 border-t border-line max-md:flex-col max-md:overflow-y-auto', pad)}>
+        <section className="scroll w-[min(440px,42%)] shrink-0 space-y-6 border-r border-line p-6 max-md:w-full max-md:overflow-visible max-md:border-r-0 max-md:p-4">
           <div className="space-y-2">
             <div className="text-[13px] font-medium">Recording</div>
             <AnimatePresence mode="wait" initial={false}>
@@ -260,7 +262,7 @@ export default function SpeechEnhancement() {
           </p>
         </section>
 
-        <section className="scroll flex min-w-0 flex-1 flex-col">
+        <section ref={results} className="scroll flex min-w-0 flex-1 flex-col max-md:min-h-[55dvh] max-md:flex-none max-md:overflow-visible max-md:border-t max-md:border-line">
           {busy ? (
             <Working busy={busy} />
           ) : latest ? (
@@ -307,7 +309,7 @@ function Result({ item, original }: { item: HistoryItem; original?: Source }) {
   const bars = useFilePeaks(item.audioPath)
   const e = item.enhance
   return (
-    <div className="border-b border-line px-8 py-6">
+    <div className="border-b border-line px-8 max-md:px-4 py-6">
       <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-3">{item.voiceName}</div>
       <div className="mb-1 text-[15px] font-semibold">{item.text}</div>
       {e && (
@@ -360,9 +362,11 @@ function PlayRow({ id, label, url, item, bars, duration, highlight }: { id: stri
 function ItemActions({ item }: { item: HistoryItem }) {
   return (
     <>
-      <IconButton label="Show in Finder" onClick={() => studio.revealInFinder(item.audioPath)}>
-        <FolderOpen className="size-4" />
-      </IconButton>
+      {!isWeb && (
+        <IconButton label="Show in Finder" onClick={() => studio.revealInFinder(item.audioPath)}>
+          <FolderOpen className="size-4" />
+        </IconButton>
+      )}
       <IconButton
         label="Export as WAV…"
         onClick={async () => {

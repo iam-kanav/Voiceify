@@ -26,11 +26,12 @@ export function Popover({
   useLayoutEffect(() => {
     if (!open || !anchor.current) return
     const r = anchor.current.getBoundingClientRect()
-    const w = width === 'anchor' || !width ? r.width : width
+    // Never wider than the screen (phones), keeping 8 px either side.
+    const w = Math.min(width === 'anchor' || !width ? r.width : width, window.innerWidth - 16)
     const below = window.innerHeight - r.bottom - 12
     const above = r.top - 12
     const up = below < 260 && above > below
-    const left = align === 'end' ? Math.max(8, r.right - w) : Math.min(r.left, window.innerWidth - w - 8)
+    const left = Math.max(8, align === 'end' ? r.right - w : Math.min(r.left, window.innerWidth - w - 8))
     setPos({ top: up ? r.top - 6 : r.bottom + 6, left, width: w, maxHeight: Math.min(480, up ? above : below), up })
   }, [open, anchor, width, align])
 

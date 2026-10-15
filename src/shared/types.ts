@@ -414,6 +414,27 @@ export interface AppSettings {
    * provider id then ParamSpec.key. Used by the app pages, agents and the API; missing = model default.
    */
   providerDefaults?: Record<string, Record<string, number>>
+  /** Lets phones on the same Wi-Fi use the full app in their browser, after pairing with a QR code. */
+  remoteEnabled?: boolean
+  remotePort?: number
+  /** Secret in the pairing QR code; changing it unpairs every phone. */
+  remoteToken?: string
+  /** Stop this Mac from going to sleep while phone access is on (default on). */
+  remoteKeepAwake?: boolean
+}
+
+/** Phone access (see src/main/remote/server.ts). */
+export interface RemoteInfo {
+  enabled: boolean
+  running: boolean
+  port: number
+  /** Addresses to open on the phone, best first (Wi-Fi IP, then this Mac's .local name). */
+  urls: string[]
+  /** What the QR code opens: the first address plus the pairing code. */
+  pairUrl: string
+  /** The pairing QR code as an image (data: URL). */
+  qr: string
+  error?: string
 }
 
 export interface ApiServerInfo {

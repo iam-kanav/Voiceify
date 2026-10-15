@@ -7,11 +7,14 @@ import { openMic } from '@/stores/mic'
 
 /** Shared audio inputs: drop/pick a file, or record from the microphone. */
 
+/** Phones and tablets pick files rather than dropping them. */
+const TOUCH = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+
 export function Dropzone({
   onFile,
   busy,
   title = 'Upload audio',
-  hint = 'Drop any audio or video file',
+  hint = TOUCH ? 'Choose any audio or video file' : 'Drop any audio or video file',
   className
 }: {
   onFile: (f: File) => void
@@ -120,6 +123,19 @@ export function Recorder({
   const stop = () => {
     rec.current?.stop()
     setState('idle')
+  }
+
+  // Browsers only allow the microphone on secure connections; a phone using Voiceify over Wi-Fi isn't one.
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return (
+      <div className={cn('flex h-36 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line-strong px-4 text-center', className)}>
+        <span className="flex size-9 items-center justify-center rounded-full bg-muted text-ink-3">
+          <Mic className="size-4" />
+        </span>
+        <div className="text-sm font-medium text-ink-2">Recording isn’t available here</div>
+        <div className="text-xs text-ink-3">Record in Voice Memos, then upload the file</div>
+      </div>
+    )
   }
 
   return (

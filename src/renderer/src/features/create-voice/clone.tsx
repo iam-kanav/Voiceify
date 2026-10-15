@@ -145,8 +145,8 @@ export function ClonePanel() {
 
   return (
     <>
-      <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
-        <section className="scroll w-[min(600px,52%)] shrink-0 space-y-6 border-r border-line p-8">
+      <div className={cn('flex min-h-0 flex-1 border-t border-line max-md:flex-col max-md:overflow-y-auto', pad)}>
+        <section className="scroll w-[min(600px,52%)] shrink-0 space-y-6 border-r border-line p-8 max-md:w-full max-md:overflow-visible max-md:border-r-0 max-md:p-4">
           {!hasClone ? <ModelGate cap="voice-clone" /> : !savedId && <PortabilityNote mode="clone" />}
 
           <AnimatePresence mode="wait">
@@ -156,7 +156,7 @@ export function ClonePanel() {
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="rounded-2xl border border-line p-8 text-center"
+                className="rounded-2xl border border-line p-8 max-md:p-4 text-center"
               >
                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 18 }}>
                   <CheckCircle2 className="mx-auto size-10 text-success" />
@@ -258,7 +258,7 @@ export function ClonePanel() {
           </AnimatePresence>
         </section>
 
-        <section className="scroll flex-1 p-8">
+        <section className="scroll flex-1 p-8 max-md:p-4 max-md:flex-none max-md:overflow-visible max-md:border-t max-md:border-line">
           <div className="mx-auto max-w-md space-y-6">
             <div className="flex items-center gap-3">
               <VoiceAvatar colors={['#0ea5e9', '#22c55e']} size={44} />

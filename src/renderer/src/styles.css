@@ -61,6 +61,29 @@ body,
   height: 100%;
 }
 
+/* Phones (Settings → Use on your phone): the bottom tab bar's height, and no zoom-on-focus or tap flashes. */
+:root {
+  --nav-h: 0px;
+}
+@media (max-width: 767px) {
+  :root {
+    --nav-h: calc(56px + env(safe-area-inset-bottom));
+  }
+  #root {
+    height: 100dvh;
+  }
+  body {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+  /* iOS zooms into fields with text under 16px; keep them at 16px on phones. */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 body {
   margin: 0;
   background: var(--c-canvas);

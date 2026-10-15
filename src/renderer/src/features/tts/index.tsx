@@ -178,16 +178,17 @@ export default function TextToSpeech() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="Text to Speech" subtitle="Turn text into lifelike speech, entirely on your computer." />
-      <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
+      {/* On phones the page is one scrolling column: text, the Generate bar, then the settings. */}
+      <div className={cn('flex min-h-0 flex-1 border-t border-line max-md:flex-col max-md:overflow-y-auto', pad)}>
         {/* Editor */}
-        <section className="relative flex min-w-0 flex-1 flex-col">
+        <section className="relative flex min-w-0 flex-1 flex-col max-md:flex-none">
           {scriptMode && <ScriptBar text={text} voices={voices} models={models} provider={provider.id} onInsert={insertTag} />}
           <textarea
             ref={textRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={scriptMode ? `Write a script. Start each part with a speaker tag:\n\n${SCRIPT_EXAMPLE}` : 'Type or paste anything, and Voiceify will read it aloud…'}
-            className="scroll flex-1 resize-none bg-transparent px-8 pt-6 pb-4 text-[17px] leading-[1.7] text-ink outline-none placeholder:text-ink-3"
+            className="scroll flex-1 resize-none bg-transparent px-8 max-md:px-4 pt-6 pb-4 text-[17px] leading-[1.7] text-ink outline-none placeholder:text-ink-3 max-md:min-h-[32dvh] max-md:flex-none max-md:px-4 max-md:pt-4"
           />
           <AnimatePresence>
             {!text && (
@@ -195,7 +196,7 @@ export default function TextToSpeech() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8, transition: { duration: 0.12 } }}
-                className="pointer-events-none absolute inset-x-8 bottom-24"
+                className="pointer-events-none absolute inset-x-8 bottom-24 max-md:static max-md:px-4 max-md:pb-4"
               >
                 <div className="mb-3 text-[13px] text-ink-3">Try an example</div>
                 <div className="pointer-events-auto flex flex-wrap gap-2">
@@ -222,7 +223,11 @@ export default function TextToSpeech() {
                         setText(s.text)
                         textRef.current?.focus()
                       }}
-                      className="flex h-9 items-center gap-2 rounded-xl border border-line px-3 text-[13px] text-ink-2 transition-colors hover:bg-subtle hover:text-ink"
+                      className={cn(
+                        'flex h-9 items-center gap-2 rounded-xl border border-line px-3 text-[13px] text-ink-2 transition-colors hover:bg-subtle hover:text-ink',
+                        // Four examples are plenty on a phone.
+                        i >= 4 && 'max-md:hidden'
+                      )}
                     >
                       <s.icon className="size-4" />
                       {s.label}
@@ -232,7 +237,7 @@ export default function TextToSpeech() {
               </motion.div>
             )}
           </AnimatePresence>
-          <div className="flex h-16 shrink-0 items-center gap-3 border-t border-line px-6">
+          <div className="flex h-16 shrink-0 items-center gap-3 border-t border-line px-6 max-md:h-auto max-md:flex-wrap max-md:gap-y-2 max-md:px-4 max-md:py-3">
             <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-xs font-medium text-ink-2">
               <Toggle checked={scriptMode} onChange={(v) => useTts.setState({ scriptMode: v })} />
               Script
@@ -252,7 +257,7 @@ export default function TextToSpeech() {
             {!blocker && <span className="hidden whitespace-nowrap text-xs text-ink-3 2xl:inline">· Any length — long text is split automatically</span>}
             <div className="flex-1" />
             {!busy && blocker && (
-              <span className="flex items-center gap-2 whitespace-nowrap text-xs text-ink-3">
+              <span className="flex items-center gap-2 whitespace-nowrap text-xs text-ink-3 max-md:order-last max-md:w-full max-md:justify-between max-md:whitespace-normal">
                 {(engine.state === 'starting' || engine.state === 'installing') && <Loader2 className="size-3.5 animate-spin" />}
                 {blocker.text}
                 {blocker.action && (
@@ -267,15 +272,19 @@ export default function TextToSpeech() {
                 Stop
               </Button>
             ) : null}
-            <Button onClick={generate} disabled={!canGenerate} loading={busy} size="md" className="min-w-[160px]" title={blocker?.text}>
+            <Button onClick={generate} disabled={!canGenerate} loading={busy} size="md" className="min-w-[160px] max-md:w-full max-md:min-w-0" title={blocker?.text}>
               {busy ? 'Generating…' : scriptMode ? 'Generate script' : 'Generate speech'}
-              {!busy && <Kbd>⌘↵</Kbd>}
+              {!busy && (
+                <span className="max-md:hidden">
+                  <Kbd>⌘↵</Kbd>
+                </span>
+              )}
             </Button>
           </div>
         </section>
 
         {/* Right panel */}
-        <aside className="flex w-[384px] shrink-0 flex-col border-l border-line">
+        <aside className="flex w-[384px] shrink-0 flex-col border-l border-line max-md:w-full max-md:border-t max-md:border-l-0">
           <div className="flex h-12 shrink-0 items-center border-b border-line px-4">
             <Tabs
               id="tts-panel"
@@ -287,7 +296,7 @@ export default function TextToSpeech() {
               ]}
             />
           </div>
-          <div className="scroll flex-1">
+          <div className="scroll flex-1 max-md:flex-none max-md:overflow-visible">
             <AnimatePresence mode="wait" initial={false}>
               {tab === 'settings' ? (
                 <motion.div

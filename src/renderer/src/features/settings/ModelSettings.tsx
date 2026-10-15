@@ -30,8 +30,8 @@ export function ModelSettings() {
         Starting values for each model family, including step counts. They apply in Text to Speech, Sound Effects and Speech Enhancement,
         and to AI apps and the local API. Changes you make on those pages stay on that page.
       </div>
-      <div className="mt-4">
-        <Tabs id="model-settings-family" value={family.id} onChange={setFamilyId} tabs={families.map((f) => ({ id: f.id, label: f.name }))} />
+      <div className="mt-4 max-md:-mx-5 max-md:overflow-x-auto max-md:px-5">
+        <Tabs id="model-settings-family" value={family.id} onChange={setFamilyId} tabs={families.map((f) => ({ id: f.id, label: f.name }))} className="max-md:w-max" />
       </div>
       <FamilyDefaults key={family.id} provider={family} />
     </Card>

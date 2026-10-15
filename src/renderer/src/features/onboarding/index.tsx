@@ -117,7 +117,7 @@ export function Onboarding() {
       className="fixed inset-0 z-[55] flex flex-col bg-canvas"
     >
       <div className="drag h-[52px] shrink-0" />
-      <div className="scroll flex flex-1 justify-center px-8 pb-12">
+      <div className="scroll flex flex-1 justify-center px-8 max-md:px-4 pb-12">
         <AnimatePresence mode="wait">
           {step === 'welcome' && <Welcome key="welcome" onNext={begin} onSkip={() => update({ onboardingComplete: true })} />}
           {step === 'models' && (
@@ -165,7 +165,7 @@ function Welcome({ onNext, onSkip }: { onNext: () => void; onSkip: () => void })
           Voice models can’t run on this device yet — the current engine needs a Mac with an Apple chip (M1 or newer). Support for more devices is planned.
         </p>
       )}
-      <Button size="lg" className="mt-10 px-8" onClick={onNext} disabled={!supported}>
+      <Button size="lg" className="mt-10 px-8 max-md:px-4" onClick={onNext} disabled={!supported}>
         Set up Voiceify <ArrowRight className="size-4" />
       </Button>
       {supported ? (
