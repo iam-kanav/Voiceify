@@ -249,7 +249,7 @@ export default function Models() {
   )
 }
 
-/** Grid of model families, four to a row; a short last row is centered. */
+/** Grid of model families, four to a row. */
 function FamilyPicker({
   families,
   value,
@@ -275,7 +275,7 @@ function FamilyPicker({
         </div>
         <Tabs id="model-category" value={category} onChange={onCategory} tabs={categories} />
       </div>
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
         {families.map((p) => {
           const id = p?.id ?? 'extras'
           const mine = models.filter((m) => (p ? m.provider === p.id && m.roleId !== 'community' && m.roleId !== 'custom' : m.roleId === 'community' || m.roleId === 'custom'))
@@ -287,7 +287,7 @@ function FamilyPicker({
               key={id}
               onClick={() => onChange(id)}
               className={cn(
-                'relative flex w-[calc((100%-0.5rem)/2)] items-start gap-3 rounded-2xl border p-3 text-left transition-colors xl:w-[calc((100%-1.5rem)/4)]',
+                'relative flex items-start gap-3 rounded-2xl border p-3 text-left transition-colors',
                 active ? 'border-ink' : 'border-line hover:border-line-strong hover:bg-subtle'
               )}
             >
