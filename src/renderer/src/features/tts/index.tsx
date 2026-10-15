@@ -15,6 +15,8 @@ import {
   RotateCcw,
   Square,
   Trash2,
+  Wand2,
+  Fingerprint,
   Wind
 } from 'lucide-react'
 import { ALL_LANGUAGES, PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
@@ -84,6 +86,8 @@ export default function TextToSpeech() {
   // Only voices this family can speak; fall back to its first built-in voice.
   const usableVoices = voices.filter((v) => providersForVoice(v).some((p) => p.id === provider.id))
   const voice = usableVoices.find((v) => v.id === tts.voiceByProvider[provider.id]) ?? usableVoices.find((v) => v.kind === 'preset') ?? usableVoices[0]
+  // A family without built-in voices (VoxCPM2) only speaks voices you create.
+  const needsOwnVoice = !voice && !provider.features.builtInVoices
   const cap = capabilityFor(voice, models, provider.id)
   const options = compatibleModels(voice, models, provider.id)
   const active = options.find((m) => m.id === modelId) ?? autoModel(voice, models, provider.id, instruct, appSettings?.defaultModels)
@@ -91,10 +95,12 @@ export default function TextToSpeech() {
   // Your own voices follow style instructions through their fingerprint (Built-in Voices, Large).
   const fpModels = fingerprintModels(voice, models, provider.id)
   const fpReady = ownVoice && !!voice?.fingerprint && fpModels.length > 0
+  // …or directly, when the cloning model itself follows instructions (VoxCPM2).
+  const clonerInstruct = ownVoice && !!active?.capabilities.includes('voice-clone') && active.capabilities.includes('instruct')
   const supportsInstruct =
     provider.features.styleInstructions &&
     !!active?.capabilities.includes('instruct') &&
-    (voice?.kind === 'preset' || (fpReady && active.capabilities.includes('preset-voices')))
+    (voice?.kind === 'preset' || (fpReady && active.capabilities.includes('preset-voices')) || clonerInstruct)
   // Typing instructions is what switches an own voice to its fingerprint, so keep the box usable.
   const instructEditable = supportsInstruct || (fpReady && modelId === 'auto')
   const mainParams = provider.params.filter((p) => !p.advanced)
@@ -103,7 +109,7 @@ export default function TextToSpeech() {
   // Script mode: every [@Name] must be a voice whose model is installed.
   const speakerChecks = useMemo(() => (scriptMode ? checkSpeakers(text, voices, models, provider.id) : []), [scriptMode, text, voices, models, provider.id])
   const scriptProblem = speakerChecks.find((s) => s.problem)?.problem
-  const canGenerate = !!text.trim() && !!active && engine.state === 'ready' && !busy && !scriptProblem
+  const canGenerate = !!text.trim() && !!voice && !!active && engine.state === 'ready' && !busy && !scriptProblem
   // Why Generate is disabled, plus a one-click fix where there is one.
   const blocker: { text: string; action?: { label: string; run: () => void } } | null =
     engine.state === 'starting'
@@ -114,7 +120,9 @@ export default function TextToSpeech() {
           ? { text: 'The voice engine isn’t installed.', action: { label: 'Install engine', run: () => studio.installEngine() } }
           : engine.state === 'error'
             ? { text: 'The voice engine stopped.', action: { label: 'Restart engine', run: () => studio.restartEngine() } }
-            : !active
+            : needsOwnVoice
+              ? { text: `${provider.name} needs a voice you created.`, action: { label: 'Create a voice', run: () => navigate('create-voice') } }
+              : !active
               ? { text: 'This voice needs a model.', action: { label: 'Open Models', run: () => navigate('models', { family: provider.id }) } }
               : !text.trim()
                 ? { text: scriptMode ? 'Write a script to generate' : 'Type something to generate' }
@@ -297,7 +305,11 @@ export default function TextToSpeech() {
                       {scriptMode ? 'Default voice' : 'Voice'}
                       {scriptMode && <InfoTip>Reads any text before the first [@Name] tag. Tagged parts use the voice they name.</InfoTip>}
                     </div>
-                    <VoicePicker provider={provider.id} value={voice?.id ?? ''} onChange={(id) => setVoice(id)} />
+                    {needsOwnVoice ? (
+                      <NoVoicesYet name={provider.name} onCreate={(mode) => navigate('create-voice', { mode })} />
+                    ) : (
+                      <VoicePicker provider={provider.id} value={voice?.id ?? ''} onChange={(id) => setVoice(id)} />
+                    )}
                   </div>
 
                   {scriptMode && (
@@ -318,13 +330,15 @@ export default function TextToSpeech() {
                   <ModelChooser provider={provider.id} voice={voice} cap={cap} options={options} active={active} value={modelId} onChange={setModel} />
 
                   {provider.features.styleInstructions &&
-                    (voice?.kind === 'preset' || fpReady ? (
+                    (voice?.kind === 'preset' || fpReady || clonerInstruct ? (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="flex items-center gap-1.5 text-[13px] font-medium">
                             Style instructions
                             <InfoTip>
-                              {ownVoice
+                              {clonerInstruct
+                                ? `Tell the voice how to speak in plain words: emotion, tone, pace, volume. ${provider.name} keeps your voice and follows your direction. Results vary a little between takes, so try a couple.`
+                                : ownVoice
                                 ? 'Tell the voice how to speak in plain words: emotion, tone, pace, volume. For your own voices, Voiceify switches to the Large Built-in Voices model, which keeps the voice and follows your direction.'
                                 : `Tell the voice how to speak in plain words: emotion, tone, pace, volume. ${provider.name} follows them with its Large built-in voices model; the Small one ignores them.`}
                             </InfoTip>
@@ -361,7 +375,7 @@ export default function TextToSpeech() {
                           </p>
                         )}
                       </div>
-                    ) : ownVoice ? (
+                    ) : ownVoice && provider.features.builtInVoices ? (
                       <p className="rounded-xl bg-subtle px-3 py-2.5 text-xs text-ink-3">
                         {fpModels.length
                           ? 'Getting this voice ready for style instructions…'
@@ -369,7 +383,7 @@ export default function TextToSpeech() {
                       </p>
                     ) : null)}
 
-                  {provider.languages.length > 1 && (
+                  {provider.languages.length > 1 && !provider.autoLanguage && (
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 text-[13px] font-medium">
                         Language
@@ -462,6 +476,24 @@ export default function TextToSpeech() {
             </AnimatePresence>
           </div>
         </aside>
+      </div>
+    </div>
+  )
+}
+
+/** Shown instead of the voice picker when this family only speaks voices you create, and there are none yet. */
+function NoVoicesYet({ name, onCreate }: { name: string; onCreate: (mode: 'design' | 'clone') => void }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-line-strong bg-subtle p-4">
+      <div className="text-sm font-medium">Create a voice to start</div>
+      <p className="mt-1 text-[13px] text-ink-3">{name} has no built-in voices. It speaks voices you design from a description or clone from a recording.</p>
+      <div className="mt-3 flex gap-2">
+        <Button size="sm" variant="outline" icon={<Wand2 className="size-3.5" />} onClick={() => onCreate('design')}>
+          Design a voice
+        </Button>
+        <Button size="sm" variant="outline" icon={<Fingerprint className="size-3.5" />} onClick={() => onCreate('clone')}>
+          Clone a voice
+        </Button>
       </div>
     </div>
   )

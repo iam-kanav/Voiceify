@@ -58,6 +58,11 @@ export const ROLES: Record<string, { label: string; blurb: string; why: string }
     blurb: 'One small model speaks the built-in voices and clones yours.',
     why: 'Everything Pocket TTS does comes in a single download. Pick a precision; 8-bit is the sweet spot.'
   },
+  'design-and-cloning': {
+    label: 'Design & Cloning',
+    blurb: 'One model designs new voices, clones yours, and speaks them with style instructions.',
+    why: 'Everything VoxCPM2 does comes in a single download. It has no built-in voices; it speaks the voices you create. Pick a precision; 8-bit is the sweet spot.'
+  },
   'voice-fingerprints': {
     label: 'Voice Fingerprints',
     blurb: 'Lets the Large Built-in Voices model speak the voices you create.',
@@ -242,6 +247,38 @@ const pocket: ModelVariant[] = POCKET.map(([q, repo, size, quality, summary]) =>
     tags: ['100M']
   }
 })
+
+// VoxCPM2 (OpenBMB). Sizes exclude the sample WAVs in the repos, which aren't downloaded.
+const VOXCPM: [Quant, string, number, number, number, string][] = [
+  ['bf16', 'a7fb80d9056983135a54ca3f71fcc5a637ccddf5', 4959017826, 5, 1.5, 'Maximum fidelity · needs the most memory'],
+  ['8bit', 'd52725898a0675703f7f9ddc5a4d1a3cdbb99032', 3225463846, 4.75, 2, 'Best balance of quality and speed'],
+  ['4bit', 'dc9e5c187858da5f4a13dc4c247e297339216381', 2300906223, 3.75, 2.5, 'Smallest and fastest · slightly less natural']
+]
+
+const voxcpm: ModelVariant[] = VOXCPM.map(([q, revision, size, quality, speed, summary]) => ({
+  id: `voxcpm2-${q}`,
+  provider: 'voxcpm2',
+  name: `VoxCPM2 · ${PRECISION_INFO[q].label}`,
+  family: 'VoxCPM2',
+  familyId: 'voxcpm2',
+  role: ROLES['design-and-cloning'].label,
+  roleId: 'design-and-cloning',
+  sizeLabel: '2B',
+  precisionLabel: PRECISION_INFO[q].label,
+  summary,
+  officialName: 'OpenBMB VoxCPM2 (2B)',
+  task: 'tts',
+  capabilities: ['voice-clone', 'voice-design', 'instruct'],
+  params: '2B',
+  quant: q,
+  source: { type: 'hf-mlx', repo: `mlx-community/VoxCPM2-${q}`, revision },
+  sizeBytes: size,
+  quality,
+  speed,
+  minRamGB: Math.ceil((size / 1e9) * 1.6 + 2),
+  description: 'Designs voices from a description and clones voices very closely, with style instructions. 30 languages, 48 kHz.',
+  tags: ['2B']
+}))
 
 /** Qwen3-TTS's speaker encoder, taken out of the Large Voice Cloning model (24 MB of a 3 GB file). */
 export const FINGERPRINT_HELPER_ID = 'qwen3-tts-voice-fingerprints'
@@ -510,7 +547,7 @@ const community: ModelVariant[] = [
   }
 ]
 
-export const CATALOG: ModelVariant[] = [...official, fingerprints, ...pocket, ...helpers, ...whisper, ...soundEffects, ...enhancers, ...community]
+export const CATALOG: ModelVariant[] = [...official, fingerprints, ...pocket, ...voxcpm, ...helpers, ...whisper, ...soundEffects, ...enhancers, ...community]
 
 export const CATALOG_BY_ID = new Map(CATALOG.map((m) => [m.id, m]))
 
@@ -546,6 +583,7 @@ export function recommendationsFor(sys: SystemInfo): Map<string, string> {
     pick('qwen3-tts-1.7b-voicedesign', 'bf16', why)
   }
   rec.set('qwen3-asr-0.6b-8bit', 'Small and fast; also fills in clone transcripts')
+  rec.set(mem <= 8 ? 'voxcpm2-4bit' : 'voxcpm2-8bit', mem <= 8 ? `Smallest VoxCPM2, to fit in ${mem} GB` : `Best balance of quality and speed for ${mem} GB of memory`)
   rec.set('pocket-tts-8bit', mem <= 8 ? `Fast and tiny — ideal for ${mem} GB of memory` : 'Tiny (140 MB) and very fast — great for drafts and long reads')
   return rec
 }

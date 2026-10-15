@@ -28,7 +28,7 @@ export interface ExtraFile {
 }
 
 export type ModelSource =
-  | { type: 'hf-mlx'; repo: string; extras?: ExtraFile[] } // ready-to-run MLX weights
+  | { type: 'hf-mlx'; repo: string; revision?: string; extras?: ExtraFile[] } // ready-to-run MLX weights (pinned when `revision` is set)
   | { type: 'hf-convert'; repo: string; qBits?: 4 | 6 | 8; extras?: ExtraFile[] } // PyTorch weights converted locally
   /** Only the tensors starting with `prefix` from one safetensors file (plus config.json), fetched with ranged requests. */
   | { type: 'hf-tensors'; repo: string; revision?: string; file: string; prefix: string; saveAs: string; extras?: ExtraFile[] }
@@ -70,6 +70,12 @@ export interface Provider {
   colors: [string, string]
   /** Language ids it can speak (see ALL_LANGUAGES). */
   languages: string[]
+  /** Works out the language from the text itself, so there's no language setting to pick. */
+  autoLanguage?: boolean
+  /** Uses a cloned voice's transcript for a closer match (others only need the audio). */
+  usesTranscript?: boolean
+  /** An extra, not part of the recommended starter set ("Download all"). */
+  optional?: boolean
   features: { builtInVoices: boolean; styleInstructions: boolean; voiceCloning: boolean; voiceDesign: boolean }
   params: ParamSpec[]
   /** Built-in voices that ship with this provider's models. */
@@ -200,7 +206,7 @@ export interface GenerationSettings {
 
 export interface GenerateRequest {
   text: string
-  /** Which model family should speak (e.g. "qwen3-tts", "pocket-tts"). Defaults to the voice's own or the default provider. */
+  /** Which model family should speak (e.g. "qwen3-tts", "voxcpm2"). Defaults to the voice's own or the default provider. For voice design previews: which family designs. */
   provider?: string
   voiceId?: string
   /** For direct voice design previews (no saved voice). */

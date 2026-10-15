@@ -1,4 +1,5 @@
 import type { Capability, ModelInfo, Voice } from '@shared/types'
+import { PROVIDER_BY_ID } from '@shared/providers'
 
 export const CAPABILITY_LABEL: Record<Capability, string> = {
   'preset-voices': 'Built-in voices',
@@ -23,7 +24,9 @@ const installedWith = (models: ModelInfo[], cap: Capability, provider?: string) 
  * design) are they re-created from their description.
  */
 export function capabilityFor(voice: Voice | undefined, models: ModelInfo[], provider?: string): Capability {
-  if (!voice || voice.kind === 'preset') return 'preset-voices'
+  // No voice yet: built-in voices, unless the family has none and only speaks voices you create.
+  if (!voice) return provider && PROVIDER_BY_ID.get(provider)?.features.builtInVoices === false ? 'voice-clone' : 'preset-voices'
+  if (voice.kind === 'preset') return 'preset-voices'
   if (
     voice.kind === 'designed' &&
     !installedWith(models, 'voice-clone', provider).length &&
@@ -76,7 +79,7 @@ export function recommendedFor(cap: Capability, models: ModelInfo[], provider?: 
   return models.find((m) => m.recommended && m.capabilities.includes(cap) && !m.community && (!provider || m.provider === provider))
 }
 
-/** Can saved voices be spoken exactly (a cloning model, or Qwen3-TTS Built-in Voices Large via fingerprints)? */
+/** Can saved voices be spoken exactly (a cloning model such as VoxCPM2, or Qwen3-TTS Built-in Voices Large via fingerprints)? */
 export const canSpeakOwnVoices = (models: ModelInfo[], provider?: string) =>
   installedWith(models, 'voice-clone', provider).length > 0 ||
   ((!provider || provider === 'qwen3-tts') &&

@@ -13,7 +13,7 @@ import { useApp } from '@/stores/app'
 import { selectVoice } from '@/stores/tts'
 import { cn, studio } from '@/lib/api'
 import { PROVIDER_BY_ID, providersForVoice, TTS_PROVIDERS } from '@shared/providers'
-import { isInstalled } from '@/lib/models'
+import { canSpeakOwnVoices } from '@/lib/models'
 import { InfoTip } from '@/components/InfoTip'
 import { usePlayerPadding } from '@/lib/useGenerate'
 
@@ -208,7 +208,7 @@ function WorksWith({ voice }: { voice: Voice }) {
     <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-ink-3">
       Works with
       {families.map((p) => {
-        const ready = models.some((m) => m.provider === p.id && isInstalled(m) && m.capabilities.includes('voice-clone'))
+        const ready = canSpeakOwnVoices(models, p.id)
         return (
           <span
             key={p.id}

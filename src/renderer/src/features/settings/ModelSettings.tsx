@@ -12,6 +12,7 @@ import { isInstalled } from '@/lib/models'
 const STEP_NOTES: Record<string, string> = {
   'qwen3-tts': 'Qwen3-TTS speaks token by token, so it has no step count; its quality knobs are the sampling settings below.',
   'pocket-tts': '“Quality steps” is Pocket TTS’s decoding step count.',
+  voxcpm2: '“Quality steps” is VoxCPM2’s diffusion step count; 6 is noticeably faster than the default 10.',
   'stable-audio': '“Quality steps” is the diffusion step count; the model is tuned for 8.'
 }
 

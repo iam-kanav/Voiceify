@@ -257,6 +257,8 @@ def handle_tts_generate(job: Job) -> Dict[str, Any]:
     p = job.params
     n = np()
     model = CACHE.get(p["model_path"], "tts")
+    if model_type(p["model_path"]) == "voxcpm2":
+        return generate_voxcpm(job, model)
     sr = int(model.sample_rate)
     stream = bool(p.get("stream", True))
 
@@ -352,6 +354,119 @@ def handle_tts_generate(job: Job) -> Dict[str, Any]:
         "first_chunk": first_chunk_at,
         "rtf": elapsed / duration if duration else 0,
         "tokens": tokens,
+        "peak_memory_gb": peak,
+    }
+
+
+class Cancelled(Exception):
+    pass
+
+
+def generate_voxcpm(job: Job, model) -> Dict[str, Any]:
+    """VoxCPM2 makes one passage at a time and returns it whole, so long text is split into
+    passages that are spoken (and streamed) one after another.
+
+    Voices you created: the reference recording plus its transcript gives the closest copy (the
+    model continues from the recording). With style instructions it clones from the recording alone
+    and follows the instructions instead. Voice design: the first passage invents the voice from
+    the description; later passages continue from it, so a long text keeps one voice.
+    """
+    p = job.params
+    n = np()
+    sr = int(model.sample_rate)
+    stream = bool(p.get("stream", True))
+    passages = [s for s in segment_text(p["text"], max_chars=240).split("\n") if s.strip()]
+    settings = {k: p[k] for k in ("inference_timesteps", "cfg_value") if p.get(k) is not None}
+    instruct = (p.get("instruct") or "").strip() or None
+    ref_audio = p.get("ref_audio") or None
+    ref_text = (p.get("ref_text") or "").strip() or None
+    designing = instruct and not ref_audio
+
+    # Stops a passage part-way when the job is cancelled (the model has no hook of its own).
+    decoder = model.feat_decoder
+    original_sample = decoder.sample
+
+    def sample(*a, **kw):
+        if job.cancelled:
+            raise Cancelled()
+        return original_sample(*a, **kw)
+
+    decoder.sample = sample
+    try:
+        mx().reset_peak_memory()
+    except Exception:
+        pass
+
+    # A short breath between passages, as a reader would leave.
+    gap = n.zeros(int(sr * 0.12), dtype=n.float32)
+    t0 = time.time()
+    first_chunk_at = None
+    pieces = []
+    tmp_ref = None
+    try:
+        for i, passage in enumerate(passages):
+            if job.cancelled:
+                break
+            kwargs: Dict[str, Any] = dict(text=passage, **settings)
+            if ref_audio:
+                kwargs["ref_audio"] = ref_audio
+                if instruct:
+                    kwargs["instruct"] = instruct
+                elif ref_text:
+                    kwargs.update(prompt_audio=ref_audio, prompt_text=ref_text.rstrip() + " ")
+            elif instruct:
+                kwargs["instruct"] = instruct
+            # The model stops by itself; this only caps a runaway passage (6.25 patches ≈ 1 s).
+            kwargs["max_tokens"] = int(min(2000, 80 + len(passage) * 4))
+            result = next(model.generate(**kwargs))
+            audio = n.asarray(result.audio, dtype=n.float32).reshape(-1)
+            if audio.size == 0:
+                continue
+            if pieces:
+                pieces.append(gap)
+                if stream:
+                    job.emit("chunk", {"pcm": base64.b64encode(to_pcm16(gap)).decode("ascii"), "sr": sr})
+            pieces.append(audio)
+            if first_chunk_at is None:
+                first_chunk_at = time.time() - t0
+            if stream:
+                job.emit("chunk", {"pcm": base64.b64encode(to_pcm16(audio)).decode("ascii"), "sr": sr})
+            if designing and i == 0 and len(passages) > 1:
+                # Keep the invented voice for the rest of the text.
+                tmp_ref = p["out_path"] + ".voice.wav"
+                write_wav(tmp_ref, audio, sr)
+                ref_audio, ref_text, instruct = tmp_ref, passage, None
+    except Cancelled:
+        pass
+    finally:
+        decoder.sample = original_sample
+        if tmp_ref and os.path.exists(tmp_ref):
+            os.remove(tmp_ref)
+
+    if job.cancelled:
+        return {"cancelled": True}
+    if not pieces:
+        raise RuntimeError("The model produced no audio. Try different text or settings.")
+
+    audio = n.concatenate(pieces)
+    elapsed = time.time() - t0
+    write_wav(p["out_path"], audio, sr)
+    if not stream:
+        job.emit("chunk", {"pcm": base64.b64encode(to_pcm16(audio)).decode("ascii"), "sr": sr})
+    duration = len(audio) / sr
+    peak = 0.0
+    try:
+        peak = mx().get_peak_memory() / 1e9
+    except Exception:
+        pass
+    return {
+        "path": p["out_path"],
+        "duration": duration,
+        "sample_rate": sr,
+        "processing_time": elapsed,
+        "first_chunk": first_chunk_at,
+        "rtf": elapsed / duration if duration else 0,
+        "tokens": 0,
         "peak_memory_gb": peak,
     }
 

@@ -24,6 +24,8 @@ interface Group {
   title: string
   body: string
   colors: [string, string]
+  /** Off unless chosen (big, specialised downloads). */
+  optional?: boolean
 }
 
 /** Setup choices, grouped by model family. */
@@ -59,6 +61,15 @@ const GROUPS: Group[] = [
     title: 'Pocket TTS',
     body: 'Tiny, very fast English voices and cloning in one small download',
     colors: ['#14b8a6', '#0ea5e9']
+  },
+  {
+    key: 'voxcpm',
+    provider: 'voxcpm2',
+    familyIds: ['voxcpm2'],
+    title: 'VoxCPM2',
+    body: 'Designs and clones voices in one model, with style instructions (no built-in voices)',
+    colors: ['#0891b2', '#7c3aed'],
+    optional: true
   },
   {
     key: 'asr',
@@ -167,7 +178,7 @@ function ModelStep({ onNext, onBack, onSkip }: { onNext: (ids: string[]) => void
     for (const g of GROUPS) {
       const opts = models.filter((m) => g.familyIds.includes(m.familyId))
       const rec = opts.find((m) => m.recommended) ?? opts[0]
-      sel[g.key] = { on: true, id: rec?.id ?? '' }
+      sel[g.key] = { on: !g.optional, id: rec?.id ?? '' }
     }
     return sel
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,7 +208,7 @@ function ModelStep({ onNext, onBack, onSkip }: { onNext: (ids: string[]) => void
               {family && (
                 <div className={cn('mb-2 flex items-baseline gap-2 px-1', i > 0 && 'pt-3')}>
                   <span className="text-sm font-semibold">{family.task === 'asr' ? 'Speech to Text' : family.name}</span>
-                  <span className="text-xs text-ink-3">{family.task === 'asr' ? 'Optional · Qwen3-ASR or OpenAI Whisper' : `${family.vendor} · ${family.tagline}`}</span>
+                  <span className="text-xs text-ink-3">{family.task === 'asr' ? 'Optional · Qwen3-ASR or OpenAI Whisper' : `${family.optional ? 'Optional · ' : ''}${family.vendor} · ${family.tagline}`}</span>
                 </div>
               )}
             <motion.div

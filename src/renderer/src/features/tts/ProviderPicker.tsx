@@ -15,7 +15,7 @@ import { cn, studio } from '@/lib/api'
 /** What a model family can and can't do, as short chips. */
 export function featureChips(p: Provider): { label: string; on: boolean }[] {
   return [
-    { label: `${p.voices.length} built-in voices`, on: p.features.builtInVoices },
+    { label: p.voices.length ? `${p.voices.length} built-in voices` : 'Built-in voices', on: p.features.builtInVoices },
     { label: p.languages.length > 1 ? `${p.languages.length} languages` : 'English only', on: true },
     { label: 'Your own voices', on: p.features.voiceCloning },
     { label: 'Style instructions', on: p.features.styleInstructions },
@@ -44,9 +44,11 @@ export function FeatureChips({ provider, compact }: { provider: Provider; compac
   )
 }
 
-/** The model to download when someone picks a family they don't have yet. */
+/** The model to download when someone picks a family they don't have yet (its built-in voices, if it has any). */
 function starterModel(models: ModelInfo[], providerId: string) {
-  const fam = models.filter((m) => m.provider === providerId && m.capabilities.includes('preset-voices') && !m.community)
+  const all = models.filter((m) => m.provider === providerId && !m.community)
+  const voices = all.filter((m) => m.capabilities.includes('preset-voices'))
+  const fam = voices.length ? voices : all
   return fam.find((m) => m.recommended) ?? fam.find((m) => m.quant === '8bit') ?? fam[0]
 }
 
@@ -61,8 +63,8 @@ export function ProviderPicker({ value, onChange }: { value: string; onChange: (
       <div className="flex items-center gap-1.5 text-[13px] font-medium">
         Model
         <InfoTip width={320}>
-          Voiceify runs several open-source voice models. Each has its own built-in voices and strengths — pick the one that suits the job. Voices you
-          clone or design work with every model that supports your own voices.
+          Voiceify runs several open-source voice models, each with its own strengths (and most with their own built-in voices). Pick the one that suits
+          the job. Voices you clone or design work with every model that supports your own voices.
         </InfoTip>
       </div>
       <button
@@ -152,7 +154,7 @@ export function ProviderPicker({ value, onChange }: { value: string; onChange: (
           )
         })}
         <div className="px-2 pb-1 pt-2 text-[11px] text-ink-3">
-          More sizes and precisions are on the Models page. {models.filter(isInstalled).length} models installed.
+          More sizes and precisions are on the Models page. {models.filter(isInstalled).length} {models.filter(isInstalled).length === 1 ? "model" : "models"} installed.
         </div>
       </Popover>
     </div>

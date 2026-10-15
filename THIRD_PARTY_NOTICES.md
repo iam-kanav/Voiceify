@@ -12,6 +12,7 @@ Models are fetched from Hugging Face on the user's request and stay under their 
 | [Qwen3-ASR](https://huggingface.co/collections/Qwen/qwen3-asr) (0.6B and 1.7B) | Alibaba Qwen team | Apache-2.0 |
 | [MLX conversions](https://huggingface.co/mlx-community) of the above | mlx-community | Apache-2.0 (inherited) |
 | [qwen3-tts-emotion-tags](https://huggingface.co/SpragAI/qwen3-tts-emotion-tags) (optional community fine-tune) | SpragAI | Apache-2.0 |
+| [VoxCPM2](https://huggingface.co/openbmb/VoxCPM2) (2B), via [mlx-community conversions](https://huggingface.co/mlx-community/VoxCPM2-8bit) (optional) | OpenBMB | Apache-2.0 |
 | [Pocket TTS](https://huggingface.co/kyutai/pocket-tts) (100M), via [mlx-community conversions](https://huggingface.co/mlx-community/pocket-tts) | Kyutai | CC-BY-4.0 |
 | [Whisper Large v3](https://huggingface.co/openai/whisper-large-v3) and [Large v3 Turbo](https://huggingface.co/openai/whisper-large-v3-turbo), via [mlx-community conversions](https://huggingface.co/mlx-community/whisper-large-v3-turbo-8bit); tokenizer files from the OpenAI repositories (optional) | OpenAI | MIT |
 | Pocket TTS tokenizer and built-in voice embeddings ([kyutai/pocket-tts-without-voice-cloning](https://huggingface.co/kyutai/pocket-tts-without-voice-cloning), [voice sources](https://huggingface.co/kyutai/tts-voices)) | Kyutai | CC-BY-4.0 (see voice repository for per-voice licenses) |

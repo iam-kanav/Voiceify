@@ -174,7 +174,8 @@ class ModelManager {
     try {
       if (model.source.type === 'hf-tensors') await this.downloadTensors(id, model.source, downloadDir, ctrl.signal)
       else if (model.source.type === 'hf-files') await this.downloadSelected(id, model.source, downloadDir, ctrl.signal)
-      else await this.downloadRepo(id, model.source.repo, downloadDir, ctrl.signal, model.source.extras)
+      else
+        await this.downloadRepo(id, model.source.repo, downloadDir, ctrl.signal, model.source.extras, model.source.type === 'hf-mlx' ? model.source.revision : undefined)
       if (model.source.type === 'hf-convert') {
         this.setTransient(id, { status: 'converting', message: 'Converting to MLX (this can take a few minutes)…' })
         rmSync(finalDir, { recursive: true, force: true })
@@ -286,8 +287,8 @@ class ModelManager {
     return this.list().find((m) => m.id === variant.id)!
   }
 
-  private async listFiles(repo: string): Promise<HfFile[]> {
-    const res = await fetch(`${HF}/api/models/${repo}/tree/main?recursive=true`)
+  private async listFiles(repo: string, revision = 'main'): Promise<HfFile[]> {
+    const res = await fetch(`${HF}/api/models/${repo}/tree/${revision}?recursive=true`)
     if (!res.ok) throw new Error(`Hugging Face returned ${res.status} for ${repo}`)
     const entries = (await res.json()) as { type: string; path: string; size?: number }[]
     return entries
@@ -388,10 +389,10 @@ class ModelManager {
     }
   }
 
-  private async downloadRepo(id: string, repo: string, dir: string, signal: AbortSignal, extras: ExtraFile[] = []) {
-    const listed = await this.listFiles(repo)
+  private async downloadRepo(id: string, repo: string, dir: string, signal: AbortSignal, extras: ExtraFile[] = [], revision?: string) {
+    const listed = await this.listFiles(repo, revision)
     const files = [
-      ...listed.map((f) => ({ ...f, url: fileUrl(repo, f.path) })),
+      ...listed.map((f) => ({ ...f, url: fileUrl(repo, f.path, revision) })),
       // Extras (tokenizers, voice embeddings) the model would otherwise fetch at runtime.
       ...extras
         .filter((e) => !listed.some((f) => f.path === (e.saveAs ?? e.path)))

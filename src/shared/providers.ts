@@ -42,6 +42,13 @@ export const STT_LANGUAGES: { id: string; label: string; code: string }[] = (
 
 const QWEN_ASR_LANGUAGES = STT_LANGUAGES.slice(0, 30).map((l) => l.id)
 
+/** VoxCPM2 reads these without being told which one it is. */
+const VOXCPM_LANGUAGES = [
+  'english', 'chinese', 'japanese', 'korean', 'german', 'french', 'russian', 'portuguese', 'spanish', 'italian',
+  'arabic', 'burmese', 'danish', 'dutch', 'finnish', 'greek', 'hebrew', 'hindi', 'indonesian', 'khmer',
+  'lao', 'malay', 'norwegian', 'polish', 'swahili', 'swedish', 'tagalog', 'thai', 'turkish', 'vietnamese'
+]
+
 function voice(
   provider: string,
   speaker: string,
@@ -82,6 +89,7 @@ export const PROVIDERS: Provider[] = [
     limits: ['Larger downloads (2–4.5 GB per model)', 'Each task uses a separate model'],
     colors: ['#6366f1', '#ec4899'],
     languages: ALL_LANGUAGES.map((l) => l.id),
+    usesTranscript: true,
     features: { builtInVoices: true, styleInstructions: true, voiceCloning: true, voiceDesign: true },
     params: [
       {
@@ -168,7 +176,7 @@ export const PROVIDERS: Provider[] = [
     description:
       'A 100-million-parameter model from Kyutai that runs several times faster than real time on almost any computer. One small download covers built-in voices and voice cloning.',
     strengths: ['Tiny: 90–240 MB', 'Very fast, starts speaking almost instantly', 'Built-in voices and cloning in one model', 'Great for long reads and drafts'],
-    limits: ['English only in Voiceify for now', 'No style instructions or voice design (design a voice with Qwen3-TTS, then use it here)'],
+    limits: ['English only in Voiceify for now', 'No style instructions or voice design (design a voice with Qwen3-TTS or VoxCPM2, then use it here)'],
     colors: ['#14b8a6', '#0ea5e9'],
     languages: ['english'],
     features: { builtInVoices: true, styleInstructions: false, voiceCloning: true, voiceDesign: false },
@@ -223,6 +231,64 @@ export const PROVIDERS: Provider[] = [
       voice('pocket-tts', 'eponine', 'female', 'English', 'Bright female voice with a British accent.', ['Bright', 'British'], ['#e11d48', '#0ea5e9']),
       voice('pocket-tts', 'azelma', 'female', 'English', 'Soft female voice with a British accent.', ['Soft', 'British'], ['#a855f7', '#14b8a6'])
     ]
+  },
+  {
+    id: 'voxcpm2',
+    name: 'VoxCPM2',
+    vendor: 'OpenBMB',
+    license: 'Apache-2.0',
+    url: 'https://huggingface.co/openbmb/VoxCPM2',
+    task: 'tts',
+    tagline: 'Studio-quality voice design and cloning in 30 languages.',
+    description:
+      'A 2-billion-parameter model from OpenBMB that speaks the voices you create. One download designs new voices from a description, clones voices very closely, and follows style instructions with them. Output is 48 kHz.',
+    strengths: [
+      'Very close voice cloning',
+      'Designs voices and clones them in one model',
+      'Style instructions with your own voices',
+      '30 languages, detected from your text',
+      '48 kHz studio-quality audio'
+    ],
+    limits: [
+      'No built-in voices: design or clone a voice first',
+      'Slower than Qwen3-TTS, and plays once each passage is ready',
+      'Results vary a little between takes'
+    ],
+    colors: ['#0891b2', '#7c3aed'],
+    languages: VOXCPM_LANGUAGES,
+    autoLanguage: true,
+    usesTranscript: true,
+    optional: true,
+    features: { builtInVoices: false, styleInstructions: true, voiceCloning: true, voiceDesign: true },
+    params: [
+      {
+        key: 'steps',
+        engineKey: 'inference_timesteps',
+        label: 'Quality steps',
+        help: 'How many refining passes each moment of audio gets (the model’s diffusion step count). Fewer is faster: 6 takes about a third less time and usually sounds just as good. More can sound slightly cleaner. Default 10.',
+        min: 4,
+        max: 30,
+        step: 1,
+        default: 10,
+        integer: true,
+        left: 'Faster',
+        right: 'More passes'
+      },
+      {
+        key: 'guidance',
+        engineKey: 'cfg_value',
+        label: 'Guidance',
+        help: 'How strictly it sticks to the voice and your words (classifier-free guidance). Higher sounds closer and clearer but can get strained; lower is looser and more relaxed. Default 2.0.',
+        min: 1,
+        max: 3,
+        step: 0.1,
+        default: 2,
+        advanced: true,
+        left: 'Relaxed',
+        right: 'Strict'
+      }
+    ],
+    voices: []
   },
   {
     id: 'qwen3-asr',

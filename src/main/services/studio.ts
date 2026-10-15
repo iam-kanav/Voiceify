@@ -88,8 +88,10 @@ function pickProvider(voice: Voice | undefined, requested?: string): Provider {
     const own = voice.provider ?? DEFAULT_PROVIDER
     if (requested && requested !== own) {
       const ownName = PROVIDER_BY_ID.get(own)?.name ?? own
-      const reqName = PROVIDER_BY_ID.get(requested)?.name ?? requested
-      throw new StudioError(`“${voice.name}” is a built-in ${ownName} voice, so ${reqName} can’t speak it. Pick one of ${reqName}’s voices, or one of your own.`)
+      const req = PROVIDER_BY_ID.get(requested)
+      const reqName = req?.name ?? requested
+      const instead = req && !req.features.builtInVoices ? 'Pick one of your own voices.' : `Pick one of ${reqName}’s voices, or one of your own.`
+      throw new StudioError(`“${voice.name}” is a built-in ${ownName} voice, so ${reqName} can’t speak it. ${instead}`)
     }
     return PROVIDER_BY_ID.get(own)!
   }
@@ -110,12 +112,30 @@ function pickProvider(voice: Voice | undefined, requested?: string): Provider {
   return PROVIDER_BY_ID.get(getSettings().defaultProvider) ?? PROVIDER_BY_ID.get(DEFAULT_PROVIDER)!
 }
 
+/** Which family designs a voice preview: the one asked for, else your default family if it can, else any that's installed. */
+function designProvider(requested?: string): Provider {
+  const designers = TTS_PROVIDERS.filter((p) => p.features.voiceDesign)
+  if (requested) {
+    const p = PROVIDER_BY_ID.get(requested)
+    if (!p) throw new StudioError(`Unknown model “${requested}”.`)
+    if (!p.features.voiceDesign) throw new StudioError(`${p.name} can’t design voices. Use ${designers.map((d) => d.name).join(' or ')}.`)
+    return p
+  }
+  const installed = models.installedProviders('voice-design')
+  const pick = [getSettings().defaultProvider, ...designers.map((p) => p.id)].find((id) => installed.includes(id))
+  return PROVIDER_BY_ID.get(pick ?? DEFAULT_PROVIDER)!
+}
+
 function defaultVoice(provider?: string): Voice {
   const fam = provider ?? getSettings().defaultProvider
   const presetOf = (id: string) => PROVIDER_BY_ID.get(id)?.voices[0]
   if (models.installedWith('preset-voices', fam).length && presetOf(fam)) return presetOf(fam)!
   const own = voices.list().find((v) => v.kind !== 'preset')
   if (own) return own
+  const family = PROVIDER_BY_ID.get(fam)
+  if (provider && family && !family.features.builtInVoices) {
+    throw new StudioError(`${family.name} has no built-in voices. Design or clone a voice in Create Voice first, then use it with ${family.name}.`)
+  }
   const anyFam = models.installedProviders('preset-voices')[0]
   return (anyFam && presetOf(anyFam)) || voices.find('preset:ryan')!
 }
@@ -126,8 +146,8 @@ function engineArgs(provider: Provider, settings: GenerationSettings & { tempera
   const values = paramsFor(provider.id, { ...legacy, ...settings.params }, getSettings().providerDefaults?.[provider.id])
   const args: Record<string, unknown> = {}
   for (const spec of provider.params) args[spec.engineKey] = spec.integer ? Math.round(values[spec.key]) : values[spec.key]
-  // Only multilingual models get a language; others always speak their one language.
-  if (provider.languages.length > 1) args.language = settings.language
+  // Only multilingual models that need telling get a language; others speak one, or work it out from the text.
+  if (provider.languages.length > 1 && !provider.autoLanguage) args.language = settings.language
   return { values, args }
 }
 
@@ -136,7 +156,7 @@ function plan(req: GenerateRequest, settings: GenerationSettings): Plan {
   const requested = req.provider ?? ref.provider
 
   if (req.designPrompt && !req.voiceId) {
-    const provider = PROVIDER_BY_ID.get('qwen3-tts')!
+    const provider = designProvider(requested)
     const model = requireModel('voice-design', ref.modelId, provider)
     const { values, args } = engineArgs(provider, settings)
     return { mode: 'design', model, provider, voiceName: 'Voice Design', values, params: { ...args, instruct: req.designPrompt } }
@@ -212,6 +232,8 @@ function plan(req: GenerateRequest, settings: GenerationSettings): Plan {
 
   const model = requireModel('voice-clone', ref.modelId, provider)
   if (!voice.refAudio) throw new StudioError(`“${voice.name}” is missing its reference audio. Clone it again from Create Voice.`)
+  // Some cloning models (VoxCPM2) follow style instructions themselves.
+  const cloneInstruct = model.capabilities.includes('instruct') ? instruct : undefined
   return {
     mode: 'clone',
     model,
@@ -219,7 +241,7 @@ function plan(req: GenerateRequest, settings: GenerationSettings): Plan {
     voice,
     voiceName: voice.name,
     values,
-    params: { ...args, ref_audio: voice.refAudio, ref_text: voice.refText || undefined }
+    params: { ...args, ref_audio: voice.refAudio, ref_text: voice.refText || undefined, instruct: cloneInstruct || undefined }
   }
 }
 
@@ -742,7 +764,9 @@ export function status() {
       installed: installed.some((m) => m.provider === p.id),
       can: {
         builtInVoices: has(p.id, 'preset-voices'),
-        styleInstructions: p.features.styleInstructions && installed.some((m) => m.provider === p.id && m.capabilities.includes('instruct') && m.capabilities.includes('preset-voices')),
+        styleInstructions:
+          p.features.styleInstructions &&
+          installed.some((m) => m.provider === p.id && m.capabilities.includes('instruct') && (m.capabilities.includes('preset-voices') || m.capabilities.includes('voice-clone'))),
         voiceCloning: has(p.id, 'voice-clone'),
         voiceDesign: has(p.id, 'voice-design')
       }

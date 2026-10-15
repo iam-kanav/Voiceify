@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { create } from 'zustand'
 import { formatBytes } from '@shared/catalog'
+import { TTS_PROVIDERS } from '@shared/providers'
 import { AnimatePresence, motion } from 'motion/react'
 import { CheckCircle2, FileAudio, Loader2, Pause, Play, Trash2, Wand } from 'lucide-react'
 import { Badge, Button, Field, Input, Textarea } from '@/components/ui'
@@ -16,6 +17,8 @@ import { canSpeakOwnVoices, isInstalled } from '@/lib/models'
 import { usePlayerPadding } from '@/lib/useGenerate'
 import { PortabilityNote } from './PortabilityNote'
 import { Dropzone, Recorder } from '@/components/AudioInput'
+
+const CLONERS = TTS_PROVIDERS.filter((p) => p.features.voiceCloning)
 
 const SCRIPT =
   'The quick brown fox jumps over the lazy dog. I love long walks on quiet mornings, a hot cup of coffee, and the sound of rain against the window. Honestly, it’s the little things that make a day feel special.'
@@ -270,7 +273,7 @@ export function ClonePanel() {
                 'Speak naturally, in the style you want to reproduce.',
                 'Avoid music, reverb, laughter or overlapping speakers.',
                 'Keep the transcript accurate — the clone is aligned against it.',
-                'Your clone can speak English, Chinese, Japanese, Korean, German, French, Russian, Portuguese, Spanish and Italian.'
+                `Your clone speaks every language of the model reading it: ${CLONERS.map((p) => `${p.languages.length > 1 ? `${p.languages.length} languages` : 'English'} with ${p.name}`).join(', ')}.`
               ].map((t) => (
                 <li key={t} className="flex gap-2.5">
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />

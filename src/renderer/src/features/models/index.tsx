@@ -5,6 +5,7 @@ import type { ModelInfo, Provider } from '@shared/types'
 import { VoiceAvatar } from '@/components/VoiceAvatar'
 import { FeatureChips } from '@/features/tts/ProviderPicker'
 import { formatBytes, PRECISION_HELP, PROVIDERS, ROLES, SIZE_HELP } from '@shared/catalog'
+import { PROVIDER_BY_ID } from '@shared/providers'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge, Button, Card, Input, Meter, ProgressBar, Tabs } from '@/components/ui'
 import { InfoTip } from '@/components/InfoTip'
@@ -18,7 +19,9 @@ import { usePlayerPadding } from '@/lib/useGenerate'
 
 type Filter = 'all' | 'installed' | 'recommended'
 
-const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'voice-cloning', 'voice-design', 'voice-fingerprints', 'transcription', 'sound-effects', 'speech-enhancement', 'community', 'custom']
+/** Roles that are a whole family on their own (one download does everything), so their header would repeat the family. */
+const SINGLE_ROLE = ['voices-and-cloning', 'design-and-cloning']
+const ROLE_ORDER = ['built-in-voices', 'voices-and-cloning', 'design-and-cloning', 'voice-cloning', 'voice-design', 'voice-fingerprints', 'transcription', 'sound-effects', 'speech-enhancement', 'community', 'custom']
 const GRID = 'grid grid-cols-[minmax(220px,1.6fr)_76px_92px_92px_128px_292px] items-center gap-4'
 
 export default function Models() {
@@ -30,7 +33,8 @@ export default function Models() {
   const navigate = useApp((s) => s.navigate)
   const pad = usePlayerPadding()
 
-  const recommended = models.filter((m) => m.recommended && !m.community)
+  // The starter set: optional extras keep their Recommended badge but aren't downloaded by "Download all".
+  const recommended = models.filter((m) => m.recommended && !m.community && !PROVIDER_BY_ID.get(m.provider)?.optional)
   const missingRec = recommended.filter((m) => m.install.status === 'not-installed' || m.install.status === 'error')
   const installedBytes = models.reduce((n, m) => n + (m.install.status === 'installed' ? m.install.sizeBytes : 0), 0)
 
@@ -188,7 +192,7 @@ export default function Models() {
                   key={roleId}
                   roleId={roleId}
                   rows={rows}
-                  showRole={!selected?.provider || familyRoles.length > 1 || roleId !== 'voices-and-cloning'}
+                  showRole={!selected?.provider || familyRoles.length > 1 || !SINGLE_ROLE.includes(roleId)}
                 />
               ))
             ) : (
@@ -375,7 +379,8 @@ function ModelRow({ model: m }: { model: ModelInfo }) {
   const updateSettings = useApp((s) => s.updateSettings)
   const s = m.install
   const primary = m.capabilities[0]
-  const isDefault = settings?.defaultModels[primary] === m.id
+  // Defaults are kept per family and job ("voxcpm2/voice-clone"); a model counts for every job it does.
+  const isDefault = settings?.defaultModels[`${m.provider}/${primary}`] === m.id
   // Helpers (e.g. Voice Fingerprints) aren't picked or measured; they just need to be there.
   const helper = m.capabilities.includes('fingerprint')
   const install = () => studio.installModel(m.id).catch((e) => toast.error('Download failed', errorMessage(e)))
@@ -472,7 +477,11 @@ function ModelRow({ model: m }: { model: ModelInfo }) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => updateSettings({ defaultModels: { ...settings?.defaultModels, [primary]: m.id } })}
+                  onClick={() =>
+                    updateSettings({
+                      defaultModels: { ...settings?.defaultModels, ...Object.fromEntries(m.capabilities.map((c) => [`${m.provider}/${c}`, m.id])) }
+                    })
+                  }
                 >
                   Use by default
                 </Button>

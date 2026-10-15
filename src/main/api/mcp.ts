@@ -88,7 +88,8 @@ export function createMcpServer(baseUrl: string) {
           language: v.language,
           gender: v.gender,
           works_with: providersForVoice(v).map((p) => p.id),
-          ...(v.kind !== 'preset' && { follows_instructions: !!v.fingerprint })
+          // Your own voices follow instructions with VoxCPM2, or with Qwen3-TTS once their fingerprint is ready.
+          ...(v.kind !== 'preset' && { follows_instructions: !!v.fingerprint || models.installedWith('instruct', 'voxcpm2').length > 0 })
         }))
       return text(JSON.stringify(list, null, 2))
     }
@@ -131,12 +132,12 @@ export function createMcpServer(baseUrl: string) {
         instructions: z
           .string()
           .optional()
-          .describe('Style/emotion/pace instructions, e.g. "Very happy, speak quickly" (Qwen3-TTS: built-in voices, and your own voices via their fingerprint; needs Built-in Voices Large)'),
+          .describe('Style/emotion/pace instructions, e.g. "Very happy, speak quickly". Qwen3-TTS: built-in voices, and your own voices via their fingerprint (needs Built-in Voices Large). VoxCPM2: your own voices.'),
         language: z.enum(LANG_IDS).optional().describe('Language (default auto-detect; single-language models ignore it)'),
         provider: z
           .string()
           .optional()
-          .describe('Model family to speak with, e.g. "qwen3-tts" (expressive, 10 languages) or "pocket-tts" (tiny, fast, English). Built-in voices belong to one family; your own voices work with any family that can clone.'),
+          .describe('Model family to speak with: "qwen3-tts" (expressive, 10 languages), "pocket-tts" (tiny, fast, English) or "voxcpm2" (closest cloning, 30 languages, your own voices only). Built-in voices belong to one family; your own voices work with any family that can clone.'),
         model: z.string().optional().describe('Specific model variant id from list_models'),
         temperature: z.number().min(0.1).max(1.5).optional().describe('Expressiveness / sampling temperature (default 0.9)'),
         play: z.boolean().optional().describe('Play the result out loud in the app'),
@@ -173,11 +174,12 @@ export function createMcpServer(baseUrl: string) {
     {
       title: 'Design a voice',
       description:
-        'Create a new voice from a natural-language description (requires a VoiceDesign model). Optionally save it to the voice library.',
+        'Create a new voice from a natural-language description (needs Qwen3-TTS Voice Design or VoxCPM2). Optionally save it to the voice library.',
       inputSchema: {
         description: z.string().min(5).describe('Voice description: age, gender, accent, timbre, emotion, pace…'),
         preview_text: z.string().min(1).describe('What the preview should say'),
         language: z.enum(LANG_IDS).optional(),
+        provider: z.string().optional().describe('Model family that designs: "qwen3-tts" or "voxcpm2" (default: whichever is installed)'),
         save_as: z.string().optional().describe('If set, save the voice under this name'),
         play: z.boolean().optional()
       }
@@ -188,6 +190,7 @@ export function createMcpServer(baseUrl: string) {
           {
             text: args.preview_text,
             designPrompt: args.description,
+            provider: args.provider,
             stream: false,
             source: 'mcp',
             settings: args.language ? { language: args.language } : undefined
@@ -281,7 +284,7 @@ export function createMcpServer(baseUrl: string) {
       inputSchema: {
         script: z.string().min(1).describe('e.g. "[@Alba]: Did you hear that?\n[@Ryan]: It\'s just the wind."'),
         default_voice: z.string().optional().describe('Voice id or name for untagged text'),
-        provider: z.string().optional().describe('Model family for your own voices, e.g. "qwen3-tts" or "pocket-tts"'),
+        provider: z.string().optional().describe('Model family for your own voices, e.g. "qwen3-tts", "pocket-tts" or "voxcpm2"'),
         language: z.enum(LANG_IDS).optional(),
         pause_seconds: z.number().min(0).max(3).optional().describe('Silence between speakers (default 0.35)'),
         play: z.boolean().optional().describe('Play the result out loud in the app'),

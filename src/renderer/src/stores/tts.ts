@@ -92,16 +92,17 @@ export function currentParams(s: Pick<TtsState, 'provider' | 'paramsByProvider'>
 
 /**
  * Use a voice in Text to Speech. Built-in voices switch to their own model family; your own
- * voices stay on the current family if it can clone, otherwise move to one that can.
+ * voices go to `prefer` (e.g. the family that just designed them) if it can speak them, else stay
+ * on the current family if it can clone, otherwise move to one that can.
  */
-export function selectVoice(voice: Voice) {
+export function selectVoice(voice: Voice, prefer?: string) {
   const s = useTts.getState()
   const families = providersForVoice(voice).map((p) => p.id)
-  const provider = families.includes(s.provider) ? s.provider : (families[0] ?? s.provider)
+  const provider = prefer && families.includes(prefer) ? prefer : families.includes(s.provider) ? s.provider : (families[0] ?? s.provider)
   useTts.setState({ provider, voiceByProvider: { ...s.voiceByProvider, [provider]: voice.id } })
 }
 
-export function selectVoiceById(id: string) {
+export function selectVoiceById(id: string, prefer?: string) {
   const voice = useApp.getState().voices.find((v) => v.id === id)
-  if (voice) selectVoice(voice)
+  if (voice) selectVoice(voice, prefer)
 }

@@ -5,6 +5,7 @@ import { Check, Loader2, Pause, Play, Shuffle, Sparkles } from 'lucide-react'
 import type { HistoryItem } from '@shared/types'
 import { formatBytes, LANGUAGES } from '@shared/catalog'
 import { DESIGN_EXAMPLES, randomColors } from '@shared/voices'
+import { TTS_PROVIDERS } from '@shared/providers'
 import { Button, Field, Input, Tabs, Textarea } from '@/components/ui'
 import { Select } from '@/components/Popover'
 import { Slider } from '@/components/Slider'
@@ -43,6 +44,8 @@ interface DesignState {
   count: '1' | '2' | '3'
   previews: Preview[]
   running: boolean
+  /** Model family that designs ('' = pick automatically). */
+  family: string
 }
 
 const useDesign = create<DesignState>(() => ({
@@ -52,7 +55,8 @@ const useDesign = create<DesignState>(() => ({
   temperature: 0.9,
   count: '3',
   previews: [],
-  running: false
+  running: false,
+  family: ''
 }))
 
 function setter<K extends keyof DesignState>(key: K) {
@@ -66,6 +70,10 @@ const setTemperature = setter('temperature')
 const setCount = setter('count')
 const setPreviews = setter('previews')
 const setRunning = setter('running')
+const setFamily = setter('family')
+
+/** Families that can invent voices from a description. */
+const DESIGNERS = TTS_PROVIDERS.filter((p) => p.features.voiceDesign)
 
 let cancelled = false
 let currentJob: string | null = null
@@ -73,8 +81,17 @@ let currentJob: string | null = null
 export function DesignPanel() {
   const models = useApp((s) => s.models)
   const navigate = useApp((s) => s.navigate)
-  const hasModel = models.some((m) => isInstalled(m) && m.capabilities.includes('voice-design'))
-  const { prompt, previewText, language, temperature, count, previews, running } = useDesign()
+  const defaultProvider = useApp((s) => s.settings?.defaultProvider)
+  const { prompt, previewText, language, temperature, count, previews, running, family: chosen } = useDesign()
+  const canDesign = (id: string) => models.some((m) => isInstalled(m) && m.provider === id && m.capabilities.includes('voice-design'))
+  // Your pick, else your default family if it can design, else whichever designer is installed.
+  const designer =
+    DESIGNERS.find((p) => p.id === chosen) ??
+    DESIGNERS.find((p) => p.id === defaultProvider && canDesign(p.id)) ??
+    DESIGNERS.find((p) => canDesign(p.id)) ??
+    DESIGNERS[0]
+  const hasModel = canDesign(designer.id)
+  const hasTemperature = designer.params.some((p) => p.key === 'temperature')
   const [saving, setSaving] = useState<Preview | null>(null)
   const pad = usePlayerPadding()
 
@@ -102,9 +119,10 @@ export function DesignPanel() {
           jobId,
           text: previewText.trim() || DEFAULT_PREVIEW,
           designPrompt: description,
+          provider: designer.id,
           stream: false,
-          // Spread the previews out a little so each one sounds distinct.
-          settings: { language, params: { temperature: Math.min(1.4, temperature + i * 0.08) } }
+          // Spread the previews out a little so each one sounds distinct (models without a temperature vary on their own).
+          settings: { language, params: hasTemperature ? { temperature: Math.min(1.4, temperature + i * 0.08) } : {} }
         })
         setPreviews((p) => p.map((x) => (x.key === key ? { ...x, status: 'done', item } : x)))
         if (i === 0) playPreview({ ...batch[0], item, status: 'done' })
@@ -129,7 +147,31 @@ export function DesignPanel() {
     <>
       <div className={cn('flex min-h-0 flex-1 border-t border-line', pad)}>
         <section className="scroll w-[min(560px,48%)] shrink-0 space-y-6 border-r border-line p-8">
-          {!hasModel ? <ModelGate cap="voice-design" provider="qwen3-tts" /> : <PortabilityNote mode="design" />}
+          {DESIGNERS.length > 1 && (
+            <Field
+              label={
+                <span className="flex items-center gap-1.5">
+                  Model
+                  <InfoTip width={320}>
+                    {DESIGNERS.map((p) => (
+                      <p key={p.id} className="mb-1 last:mb-0">
+                        <b className="font-medium">{p.name}:</b> {p.tagline}
+                      </p>
+                    ))}
+                  </InfoTip>
+                </span>
+              }
+            >
+              <Tabs
+                id="design-family"
+                value={designer.id}
+                onChange={setFamily}
+                className="h-10 rounded-xl border border-line-strong px-1"
+                tabs={DESIGNERS.map((p) => ({ id: p.id, label: p.name }))}
+              />
+            </Field>
+          )}
+          {!hasModel ? <ModelGate cap="voice-design" provider={designer.id} /> : <PortabilityNote mode="design" designer={designer.id} />}
           <Field
             label="Voice description"
             right={
@@ -167,9 +209,11 @@ export function DesignPanel() {
             <Textarea rows={4} value={previewText} onChange={(e) => setPreviewText(e.target.value)} />
           </Field>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Language">
-              <Select value={language} onChange={setLanguage} options={LANGUAGES.map((l) => ({ value: l.id, label: l.label }))} />
-            </Field>
+            {!designer.autoLanguage && (
+              <Field label="Language">
+                <Select value={language} onChange={setLanguage} options={LANGUAGES.map((l) => ({ value: l.id, label: l.label }))} />
+              </Field>
+            )}
             <Field
               label={
                 <span className="flex items-center gap-1.5">
@@ -191,6 +235,7 @@ export function DesignPanel() {
               />
             </Field>
           </div>
+          {hasTemperature && (
           <Slider
             label="Expressiveness"
             value={temperature}
@@ -202,6 +247,7 @@ export function DesignPanel() {
             format={(v) => v.toFixed(2)}
             hint="How freely the model interprets your description. Steady gives safer, more predictable voices; Expressive gives livelier, more surprising ones. (Sampling temperature, default 0.9.)"
           />
+          )}
           <div className="flex gap-2">
             <Button
               size="lg"
@@ -249,7 +295,7 @@ export function DesignPanel() {
         onSaved={(id) => {
           setSaving(null)
           toast.success('Voice saved to your library', (
-            <button className="underline" onClick={() => (selectVoiceById(id), navigate('tts'))}>
+            <button className="underline" onClick={() => (selectVoiceById(id, designer.id), navigate('tts'))}>
               Use it in Text to Speech
             </button>
           ))
